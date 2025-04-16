@@ -1,0 +1,70 @@
+import { useState, useEffect } from "react";
+import Layout from "./components/Layout.jsx";
+import MemberTable from "./components/MemberTable.jsx";
+import MemberManager from "./components/MemberManager.jsx";
+import TaxCalendar from "./components/TaxCalendar.jsx";
+import TaxConfigPanel from "./components/TaxConfigPanel.jsx";
+
+// 🔐 Login-Schutz & Logout
+import ProtectedRoute from './auth/ProtectedRoute.jsx';
+import LogoutButton from './auth/LogoutButton.jsx';
+
+const STORAGE_KEY_MEMBERS = "obscuritas_members";
+const STORAGE_KEY_TAX = "obscuritas_taxconfig";
+
+export default function App() {
+  const [members, setMembers] = useState([]);
+  const [taxConfig, setTaxConfig] = useState({
+    low: "50s",
+    mid: "1g",
+    high: "2g",
+  });
+
+  // 💾 Laden bei Start
+  useEffect(() => {
+    const savedMembers = localStorage.getItem(STORAGE_KEY_MEMBERS);
+    const savedTax = localStorage.getItem(STORAGE_KEY_TAX);
+    if (savedMembers) setMembers(JSON.parse(savedMembers));
+    if (savedTax) setTaxConfig(JSON.parse(savedTax));
+  }, []);
+
+  // 💾 Speichern bei Änderungen
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_MEMBERS, JSON.stringify(members));
+  }, [members]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_TAX, JSON.stringify(taxConfig));
+  }, [taxConfig]);
+
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen bg-obsDark text-obsGray p-10">
+        <div className="flex items-center gap-4 mb-6">
+          <img src="/logo.png" alt="Obscuritas Logo" className="h-16 w-16 rounded-full shadow-lg" />
+          <div>
+            <h1 className="text-4xl font-bold text-obsRed">[DE] Obscuritas – Gildensteuer Tool</h1>
+            <LogoutButton />
+          </div>
+        </div>
+
+        <Layout
+          left={
+            <MemberTable
+              members={members}
+              setMembers={setMembers}
+              taxConfig={taxConfig}
+            />
+          }
+          right={
+            <div className="space-y-6">
+              <TaxConfigPanel taxConfig={taxConfig} setTaxConfig={setTaxConfig} />
+              <MemberManager setMembers={setMembers} taxConfig={taxConfig} />
+              <TaxCalendar members={members} setMembers={setMembers} />
+            </div>
+          }
+        />
+      </div>
+    </ProtectedRoute>
+  );
+}
