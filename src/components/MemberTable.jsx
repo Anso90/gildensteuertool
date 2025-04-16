@@ -38,20 +38,6 @@ const getAllPastWeeks = () => {
 export default function MemberTable({ members, setMembers, taxConfig }) {
   const weekKeys = getAllPastWeeks();
 
-  const parseGold = (val) => {
-    if (typeof val === "string") {
-      if (val.endsWith("s")) return parseFloat(val) / 100;
-      if (val.endsWith("g")) return parseFloat(val);
-    }
-    return parseFloat(val);
-  };
-
-  const calculateTax = (level) => {
-    if (level < 10) return parseGold(taxConfig.low);
-    if (level < 20) return parseGold(taxConfig.mid);
-    return parseGold(taxConfig.high);
-  };
-
   const removeMember = (index) => {
     const updated = [...members];
     updated.splice(index, 1);
@@ -71,10 +57,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
   const updateMember = async (index, field, value) => {
     const updated = [...members];
     updated[index][field] = field === "level" ? parseInt(value) : value;
-
-    if (field === "level") {
-      updated[index].tax = calculateTax(updated[index].level);
-    }
 
     setMembers(updated);
 
@@ -105,12 +87,30 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     await setPaymentStatus(member.id, week, newStatus);
   };
 
+  const calculateTax = (level) => {
+    if (level < 10) return `${taxConfig.low}`;
+    if (level < 20) return `${taxConfig.mid}`;
+    return `${taxConfig.high}`;
+  };
+
+  const parseGold = (val) => {
+    if (typeof val === "string") {
+      if (val.endsWith("s")) return parseFloat(val) / 100;
+      if (val.endsWith("g")) return parseFloat(val);
+      if (!isNaN(parseFloat(val))) return parseFloat(val);
+    }
+    return Number(val) || 0;
+  };
+
   const classCounts = members.reduce((acc, m) => {
     acc[m.class] = (acc[m.class] || 0) + 1;
     return acc;
   }, {});
 
-  const totalTax = members.reduce((sum, m) => sum + calculateTax(m.level), 0);
+  const totalTax = members.reduce(
+    (sum, m) => sum + parseGold(calculateTax(m.level)),
+    0
+  );
 
   const countUnpaid = (paidWeeks = {}) =>
     weekKeys.filter((w) => !paidWeeks[w]).length;
@@ -175,7 +175,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                       <option key={cls} value={cls}>{cls}</option>
                     ))}
                   </select>
-                  Steuer: <strong>{calculateTax(member.level)}g</strong>
+                  Steuer: <strong>{calculateTax(member.level)}</strong>
                   {unpaid > 0 ? (
                     <span className="text-red-200">💸 {unpaid} offen</span>
                   ) : (
