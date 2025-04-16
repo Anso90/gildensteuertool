@@ -9,6 +9,9 @@ import TaxConfigPanel from "./components/TaxConfigPanel.jsx";
 import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import LogoutButton from "./auth/LogoutButton.jsx";
 
+// 🟢 Online-Anzeige
+import OnlineUsers from "./components/OnlineUsers.jsx";
+
 // 🔄 Supabase für Online-Tracking
 import { supabase } from "./auth/supabaseClient.js";
 
@@ -70,18 +73,23 @@ export default function App() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-obsDark text-obsGray p-10">
-        <div className="flex items-center gap-4 mb-6">
-          <img
-            src="/logo.png"
-            alt="Obscuritas Logo"
-            className="h-16 w-16 rounded-full shadow-lg"
-          />
-          <div>
-            <h1 className="text-4xl font-bold text-obsRed">
-              [DE] Obscuritas – Gildensteuer Tool
-            </h1>
-            <LogoutButton />
+        {/* 🧠 Header: Logo + Titel + Logout + Online-Anzeige */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo.png"
+              alt="Obscuritas Logo"
+              className="h-16 w-16 rounded-full shadow-lg"
+            />
+            <div>
+              <h1 className="text-4xl font-bold text-obsRed">
+                [DE] Obscuritas – Gildensteuer Tool
+              </h1>
+              <LogoutButton />
+            </div>
           </div>
+          {/* Online User Count sichtbar */}
+          <OnlineUsers />
         </div>
 
         <Layout
