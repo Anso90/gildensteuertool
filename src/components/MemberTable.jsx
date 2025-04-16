@@ -97,12 +97,20 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return taxConfig.high;
   };
 
+  const parseGold = (val) => {
+    if (typeof val === "string") {
+      if (val.endsWith("s")) return parseFloat(val) / 100;
+      if (val.endsWith("g")) return parseFloat(val);
+    }
+    return parseFloat(val);
+  };
+
   const classCounts = members.reduce((acc, m) => {
     acc[m.class] = (acc[m.class] || 0) + 1;
     return acc;
   }, {});
 
-  const totalTax = members.reduce((sum, m) => sum + parseFloat(calculateTax(m.level)), 0);
+  const totalTax = members.reduce((sum, m) => sum + parseGold(calculateTax(m.level)), 0);
 
   const countUnpaid = (paidWeeks = {}) =>
     weekKeys.filter((w) => !paidWeeks[w]).length;
@@ -115,7 +123,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2">Mitglieder</h2>
-
+  
       <div className="bg-obsDark text-obsGray border border-obsRed p-4 rounded-lg">
         <div>👥 Gesamtmitglieder: <strong>{members.length}</strong></div>
         <div className="flex flex-wrap gap-3">
@@ -131,15 +139,15 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
           )}
         </div>
         <div className="mt-1">
-          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax}g
+          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
         </div>
       </div>
-
+  
       <ul className="space-y-1 mt-4">
         {members.map((member, idx) => {
           const unpaid = countUnpaid(member.paidWeeks);
           const latestWeek = latestPaidWeek(member.paidWeeks);
-
+  
           return (
             <li
               key={idx}
@@ -174,7 +182,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                     <span className="text-green-200">✅ {latestWeek}</span>
                   )}
                 </div>
-
+  
                 <div className="flex flex-wrap gap-1 mt-1">
                   {weekKeys.slice(-3).map((week) => (
                     <span
@@ -189,7 +197,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   ))}
                 </div>
               </div>
-
+  
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
                 <button onClick={() => moveMember(idx, -1)}>⬆️</button>
                 <button onClick={() => moveMember(idx, 1)}>⬇️</button>
@@ -201,4 +209,4 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
       </ul>
     </div>
   );
-}
+  
