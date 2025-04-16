@@ -38,7 +38,6 @@ const getAllPastWeeks = () => {
 
 export default function MemberTable({ members, setMembers, taxConfig }) {
   const weekKeys = getAllPastWeeks();
-
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
 
@@ -56,8 +55,11 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return taxConfig.high;
   };
 
-  const updateMember = async (index, field, value) => {
+  const updateMember = async (id, field, value) => {
     const updated = [...members];
+    const index = updated.findIndex((m) => m.id === id);
+    if (index === -1) return;
+
     updated[index][field] = field === "level" ? parseInt(value) : value;
 
     if (field === "level") {
@@ -66,7 +68,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
     setMembers(updated);
 
-    const { id, level, class: klasse } = updated[index];
+    const { level, class: klasse } = updated[index];
     const { error } = await supabase
       .from("members")
       .update({ level, class: klasse })
@@ -77,8 +79,11 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     }
   };
 
-  const toggleWeek = async (index, week) => {
+  const toggleWeek = async (id, week) => {
     const updated = [...members];
+    const index = updated.findIndex((m) => m.id === id);
+    if (index === -1) return;
+
     const member = updated[index];
     const current = member.paidWeeks?.[week] || false;
     const newStatus = !current;
@@ -89,20 +94,20 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     };
 
     setMembers(updated);
-
-    await setPaymentStatus(member.id, week, newStatus);
+    await setPaymentStatus(id, week, newStatus);
   };
 
-  const removeMember = (index) => {
-    const updated = [...members];
-    updated.splice(index, 1);
+  const removeMember = (id) => {
+    const updated = members.filter((m) => m.id !== id);
     setMembers(updated);
   };
 
-  const moveMember = (index, direction) => {
-    const updated = [...members];
+  const moveMember = (id, direction) => {
+    const index = members.findIndex((m) => m.id === id);
     const target = index + direction;
     if (target < 0 || target >= members.length) return;
+
+    const updated = [...members];
     const temp = updated[index];
     updated[index] = updated[target];
     updated[target] = temp;
@@ -153,6 +158,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
             {members.length}
           </span>
         </div>
+
         <div className="flex flex-wrap gap-2 my-2">
           {classList.map((cls) =>
             classCounts[cls] ? (
@@ -166,6 +172,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
             ) : null
           )}
         </div>
+
         <div className="flex gap-2 mb-2 text-xs">
           <button
             onClick={() => setSortBy("level")}
@@ -189,6 +196,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
             🔁 Zurücksetzen
           </button>
         </div>
+
         <div>
           💰 <strong>Insgesamte Gildensteuer pro Woche:</strong>{" "}
           {totalTax.toFixed(2)}g
@@ -197,7 +205,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
-          const index = members.findIndex((m) => m.id === member.id);
           const unpaid = countUnpaid(member.paidWeeks);
           const latestWeek = latestPaidWeek(member.paidWeeks);
 
@@ -216,7 +223,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                     type="number"
                     value={member.level}
                     onChange={(e) =>
-                      updateMember(index, "level", e.target.value)
+                      updateMember(member.id, "level", e.target.value)
                     }
                     className="w-14 px-1 py-0.5 rounded text-black text-xs"
                   />
@@ -224,7 +231,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   <select
                     value={member.class}
                     onChange={(e) =>
-                      updateMember(index, "class", e.target.value)
+                      updateMember(member.id, "class", e.target.value)
                     }
                     className="px-1 py-0.5 rounded text-black text-xs"
                   >
@@ -246,7 +253,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   {weekKeys.slice(-3).map((week) => (
                     <span
                       key={week}
-                      onClick={() => toggleWeek(index, week)}
+                      onClick={() => toggleWeek(member.id, week)}
                       className={`px-2 py-0.5 rounded cursor-pointer text-xs ${
                         member.paidWeeks?.[week]
                           ? "bg-green-600"
@@ -260,10 +267,10 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
               </div>
 
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
-                <button onClick={() => moveMember(index, -1)}>⬆️</button>
-                <button onClick={() => moveMember(index, 1)}>⬇️</button>
+                <button onClick={() => moveMember(member.id, -1)}>⬆️</button>
+                <button onClick={() => moveMember(member.id, 1)}>⬇️</button>
                 <button
-                  onClick={() => removeMember(index)}
+                  onClick={() => removeMember(member.id)}
                   className="hover:underline"
                 >
                   ✖
