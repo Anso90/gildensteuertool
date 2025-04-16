@@ -47,15 +47,34 @@ const getWeekDateRange = (weekNumber, year) => {
   
     return (
       <div className="bg-obsDark border border-obsRed p-4 rounded-lg shadow-lg">
-        <h2 className="text-lg font-bold text-obsRed mb-4">📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}</h2>
+        <h2 className="text-lg font-bold text-obsRed mb-4">
+          📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}
+        </h2>
   
-        <div className="overflow-x-auto">
-          <table className="table-auto text-sm border border-gray-700 w-full">
+        {/* Obere Scroll-Sync-Bar */}
+        <div
+          className="overflow-x-auto h-4 mb-2"
+          ref={(el) => {
+            if (el) {
+              const content = document.getElementById("tax-scroll-sync");
+              el.onscroll = () => (content.scrollLeft = el.scrollLeft);
+              content.onscroll = () => (el.scrollLeft = content.scrollLeft);
+            }
+          }}
+        >
+          <div style={{ width: "2000px" }} />
+        </div>
+  
+        {/* Kalender Tabelle */}
+        <div id="tax-scroll-sync" className="overflow-x-auto max-h-[500px]">
+          <table className="min-w-full table-fixed border-collapse text-xs">
             <thead>
-              <tr className="bg-gray-800 text-white">
-                <th className="p-2 text-left">Mitglied</th>
+              <tr>
+                <th className="sticky left-0 z-10 bg-obsDark text-white p-2 text-left border-r border-obsRed bg-opacity-90">
+                  Mitglied
+                </th>
                 {allWeeks.map(({ year, week }) => (
-                  <th key={`${year}-W${week}`} className="p-2 whitespace-nowrap">
+                  <th key={`${year}-W${week}`} className="p-2 bg-obsDark text-white whitespace-nowrap">
                     {getWeekDateRange(week, year)}
                   </th>
                 ))}
@@ -64,7 +83,9 @@ const getWeekDateRange = (weekNumber, year) => {
             <tbody>
               {members.map((m, i) => (
                 <tr key={i} className="border-t border-gray-600 text-center">
-                  <td className="p-2 text-left text-white font-medium">{m.name}</td>
+                  <td className="sticky left-0 z-10 bg-black bg-opacity-80 p-2 border-r border-obsRed text-white text-left font-medium">
+                    {m.name}
+                  </td>
                   {allWeeks.map(({ year, week }) => {
                     const key = `${year}-W${week}`;
                     const paid = m.paidWeeks?.[key] || false;
