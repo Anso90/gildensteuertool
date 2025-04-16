@@ -112,22 +112,16 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return acc;
   }, {});
 
-  const filteredMembers = filterClass
-    ? members.filter((m) => m.class === filterClass)
-    : members;
-
-  const totalTax = filteredMembers.reduce(
-    (sum, m) => sum + parseGold(calculateTax(m.level)),
-    0
-  );
-
-  const countUnpaid = (paidWeeks = {}) =>
-    weekKeys.filter((w) => !paidWeeks[w]).length;
-
+  const totalTax = members.reduce((sum, m) => sum + parseGold(calculateTax(m.level)), 0);
+  const countUnpaid = (paidWeeks = {}) => weekKeys.filter((w) => !paidWeeks[w]).length;
   const latestPaidWeek = (paidWeeks = {}) => {
     const paid = weekKeys.filter((w) => paidWeeks[w]);
     return paid.length > 0 ? paid[paid.length - 1] : "–";
   };
+
+  const filteredMembers = filterClass
+    ? members.filter((m) => m.class === filterClass)
+    : members;
 
   return (
     <div>
@@ -135,7 +129,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
       <div className="bg-obsDark text-obsGray border border-obsRed p-4 rounded-lg">
         <div
-          className="cursor-pointer mb-1"
+          className="cursor-pointer hover:underline mb-1 w-fit"
           onClick={() => setFilterClass(null)}
         >
           👥 Gesamtmitglieder: <strong>{members.length}</strong>
@@ -158,8 +152,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
         </div>
 
         <div className="mt-1">
-          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong>{" "}
-          {totalTax.toFixed(2)}g
+          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
         </div>
       </div>
 
@@ -182,17 +175,13 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   <input
                     type="number"
                     value={member.level}
-                    onChange={(e) =>
-                      updateMember(idx, "level", e.target.value)
-                    }
+                    onChange={(e) => updateMember(idx, "level", e.target.value)}
                     className="w-14 px-1 py-0.5 rounded text-black text-xs"
                   />
                   Klasse:
                   <select
                     value={member.class}
-                    onChange={(e) =>
-                      updateMember(idx, "class", e.target.value)
-                    }
+                    onChange={(e) => updateMember(idx, "class", e.target.value)}
                     className="px-1 py-0.5 rounded text-black text-xs"
                   >
                     {classList.map((cls) => (
@@ -215,9 +204,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                       key={week}
                       onClick={() => toggleWeek(idx, week)}
                       className={`px-2 py-0.5 rounded cursor-pointer text-xs ${
-                        member.paidWeeks?.[week]
-                          ? "bg-green-600"
-                          : "bg-red-600"
+                        member.paidWeeks?.[week] ? "bg-green-600" : "bg-red-600"
                       }`}
                     >
                       {week}
@@ -229,10 +216,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
                 <button onClick={() => moveMember(idx, -1)}>⬆️</button>
                 <button onClick={() => moveMember(idx, 1)}>⬇️</button>
-                <button
-                  onClick={() => removeMember(idx)}
-                  className="hover:underline"
-                >
+                <button onClick={() => removeMember(idx)} className="hover:underline">
                   ✖
                 </button>
               </div>
