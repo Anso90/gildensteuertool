@@ -38,6 +38,7 @@ const getAllPastWeeks = () => {
 
 export default function MemberTable({ members, setMembers, taxConfig }) {
   const [filterClass, setFilterClass] = useState(null);
+  const [sortBy, setSortBy] = useState(null);
   const weekKeys = getAllPastWeeks();
 
   const removeMember = (index) => {
@@ -119,9 +120,25 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return paid.length > 0 ? paid[paid.length - 1] : "–";
   };
 
-  const filteredMembers = filterClass
-    ? members.filter((m) => m.class === filterClass)
-    : members;
+  const filtered = filterClass ? members.filter((m) => m.class === filterClass) : members;
+
+  const applySorting = (list) => {
+    const sorted = [...list];
+    switch (sortBy) {
+      case "level-asc":
+        return sorted.sort((a, b) => a.level - b.level);
+      case "level-desc":
+        return sorted.sort((a, b) => b.level - a.level);
+      case "class-asc":
+        return sorted.sort((a, b) => a.class.localeCompare(b.class));
+      case "class-desc":
+        return sorted.sort((a, b) => b.class.localeCompare(a.class));
+      default:
+        return sorted;
+    }
+  };
+
+  const visibleMembers = applySorting(filtered);
 
   return (
     <div>
@@ -135,7 +152,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
           👥 Gesamtmitglieder: <strong>{members.length}</strong>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 mb-2">
           {classList.map((cls) =>
             classCounts[cls] ? (
               <span
@@ -151,13 +168,54 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
           )}
         </div>
 
+        <div className="flex gap-2 flex-wrap mb-2 text-sm">
+          <button
+            onClick={() => setSortBy("level-asc")}
+            className={`px-2 py-1 rounded border ${
+              sortBy === "level-asc" ? "bg-obsRed text-white" : "bg-black text-white"
+            }`}
+          >
+            🔼 Level
+          </button>
+          <button
+            onClick={() => setSortBy("level-desc")}
+            className={`px-2 py-1 rounded border ${
+              sortBy === "level-desc" ? "bg-obsRed text-white" : "bg-black text-white"
+            }`}
+          >
+            🔽 Level
+          </button>
+          <button
+            onClick={() => setSortBy("class-asc")}
+            className={`px-2 py-1 rounded border ${
+              sortBy === "class-asc" ? "bg-obsRed text-white" : "bg-black text-white"
+            }`}
+          >
+            🔼 Klasse
+          </button>
+          <button
+            onClick={() => setSortBy("class-desc")}
+            className={`px-2 py-1 rounded border ${
+              sortBy === "class-desc" ? "bg-obsRed text-white" : "bg-black text-white"
+            }`}
+          >
+            🔽 Klasse
+          </button>
+          <button
+            onClick={() => setSortBy(null)}
+            className="px-2 py-1 rounded border bg-gray-700 text-white"
+          >
+            🔁 Zurücksetzen
+          </button>
+        </div>
+
         <div className="mt-1">
           💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
         </div>
       </div>
 
       <ul className="space-y-1 mt-4">
-        {filteredMembers.map((member, idx) => {
+        {visibleMembers.map((member, idx) => {
           const unpaid = countUnpaid(member.paidWeeks);
           const latestWeek = latestPaidWeek(member.paidWeeks);
 
