@@ -37,24 +37,23 @@ const getAllPastWeeks = () => {
 };
 
 export default function MemberTable({ members, setMembers, taxConfig }) {
-  const [filterClass, setFilterClass] = useState(null);
-  const [sortBy, setSortBy] = useState(null);
   const weekKeys = getAllPastWeeks();
 
-  const removeMember = (index) => {
-    const updated = [...members];
-    updated.splice(index, 1);
-    setMembers(updated);
+  const [filterClass, setFilterClass] = useState(null);
+  const [sortBy, setSortBy] = useState(null);
+
+  const parseGold = (val) => {
+    if (typeof val === "string") {
+      if (val.endsWith("s")) return parseFloat(val) / 100;
+      if (val.endsWith("g")) return parseFloat(val);
+    }
+    return parseFloat(val);
   };
 
-  const moveMember = (index, direction) => {
-    const updated = [...members];
-    const target = index + direction;
-    if (target < 0 || target >= members.length) return;
-    const temp = updated[index];
-    updated[index] = updated[target];
-    updated[target] = temp;
-    setMembers(updated);
+  const calculateTax = (level) => {
+    if (level < 10) return taxConfig.low;
+    if (level < 20) return taxConfig.mid;
+    return taxConfig.high;
   };
 
   const updateMember = async (index, field, value) => {
@@ -94,18 +93,20 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     await setPaymentStatus(member.id, week, newStatus);
   };
 
-  const calculateTax = (level) => {
-    if (level < 10) return taxConfig.low;
-    if (level < 20) return taxConfig.mid;
-    return taxConfig.high;
+  const removeMember = (index) => {
+    const updated = [...members];
+    updated.splice(index, 1);
+    setMembers(updated);
   };
 
-  const parseGold = (val) => {
-    if (typeof val === "string") {
-      if (val.endsWith("s")) return parseFloat(val) / 100;
-      if (val.endsWith("g")) return parseFloat(val);
-    }
-    return parseFloat(val);
+  const moveMember = (index, direction) => {
+    const updated = [...members];
+    const target = index + direction;
+    if (target < 0 || target >= members.length) return;
+    const temp = updated[index];
+    updated[index] = updated[target];
+    updated[target] = temp;
+    setMembers(updated);
   };
 
   const classCounts = members.reduce((acc, m) => {
@@ -113,115 +114,96 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return acc;
   }, {});
 
-  const totalTax = members.reduce((sum, m) => sum + parseGold(calculateTax(m.level)), 0);
-  const countUnpaid = (paidWeeks = {}) => weekKeys.filter((w) => !paidWeeks[w]).length;
+  const totalTax = members.reduce(
+    (sum, m) => sum + parseGold(calculateTax(m.level)),
+    0
+  );
+
+  const countUnpaid = (paidWeeks = {}) =>
+    weekKeys.filter((w) => !paidWeeks[w]).length;
+
   const latestPaidWeek = (paidWeeks = {}) => {
     const paid = weekKeys.filter((w) => paidWeeks[w]);
     return paid.length > 0 ? paid[paid.length - 1] : "–";
   };
 
-  const filtered = filterClass ? members.filter((m) => m.class === filterClass) : members;
+  let visibleMembers = [...members];
 
-  const applySorting = (list) => {
-    const sorted = [...list];
-    switch (sortBy) {
-      case "level-asc":
-        return sorted.sort((a, b) => a.level - b.level);
-      case "level-desc":
-        return sorted.sort((a, b) => b.level - a.level);
-      case "class-asc":
-        return sorted.sort((a, b) => a.class.localeCompare(b.class));
-      case "class-desc":
-        return sorted.sort((a, b) => b.class.localeCompare(a.class));
-      default:
-        return sorted;
-    }
-  };
+  if (filterClass) {
+    visibleMembers = visibleMembers.filter((m) => m.class === filterClass);
+  }
 
-  const visibleMembers = applySorting(filtered);
+  if (sortBy === "level") {
+    visibleMembers.sort((a, b) => b.level - a.level);
+  } else if (sortBy === "class") {
+    visibleMembers.sort((a, b) => a.class.localeCompare(b.class));
+  }
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2">Mitglieder</h2>
 
       <div className="bg-obsDark text-obsGray border border-obsRed p-4 rounded-lg">
-        <div
-          className="cursor-pointer hover:underline mb-1 w-fit"
-          onClick={() => setFilterClass(null)}
-        >
-          👥 Gesamtmitglieder: <strong>{members.length}</strong>
+        <div>
+          👥 <strong>Gesamtmitglieder:</strong>{" "}
+          <span
+            onClick={() => setFilterClass(null)}
+            className="cursor-pointer text-white"
+          >
+            {members.length}
+          </span>
         </div>
-
-        <div className="flex flex-wrap gap-3 mb-2">
+        <div className="flex flex-wrap gap-2 my-2">
           {classList.map((cls) =>
             classCounts[cls] ? (
               <span
                 key={cls}
                 onClick={() => setFilterClass(cls)}
-                className={`cursor-pointer px-2 py-1 rounded text-white text-xs ${classColors[cls]} ${
-                  filterClass === cls ? "ring-2 ring-white" : ""
-                }`}
+                className={`cursor-pointer px-2 py-1 rounded text-white text-xs ${classColors[cls]}`}
               >
                 {cls}: {classCounts[cls]}
               </span>
             ) : null
           )}
         </div>
-
-        <div className="flex gap-2 flex-wrap mb-2 text-sm">
+        <div className="flex gap-2 mb-2 text-xs">
           <button
-            onClick={() => setSortBy("level-asc")}
-            className={`px-2 py-1 rounded border ${
-              sortBy === "level-asc" ? "bg-obsRed text-white" : "bg-black text-white"
-            }`}
+            onClick={() => setSortBy("level")}
+            className="bg-blue-800 px-2 py-1 rounded text-white"
           >
             🔼 Level
           </button>
           <button
-            onClick={() => setSortBy("level-desc")}
-            className={`px-2 py-1 rounded border ${
-              sortBy === "level-desc" ? "bg-obsRed text-white" : "bg-black text-white"
-            }`}
+            onClick={() => setSortBy("class")}
+            className="bg-red-700 px-2 py-1 rounded text-white"
           >
-            🔽 Level
+            🔤 Klasse
           </button>
           <button
-            onClick={() => setSortBy("class-asc")}
-            className={`px-2 py-1 rounded border ${
-              sortBy === "class-asc" ? "bg-obsRed text-white" : "bg-black text-white"
-            }`}
-          >
-            🔼 Klasse
-          </button>
-          <button
-            onClick={() => setSortBy("class-desc")}
-            className={`px-2 py-1 rounded border ${
-              sortBy === "class-desc" ? "bg-obsRed text-white" : "bg-black text-white"
-            }`}
-          >
-            🔽 Klasse
-          </button>
-          <button
-            onClick={() => setSortBy(null)}
-            className="px-2 py-1 rounded border bg-gray-700 text-white"
+            onClick={() => {
+              setSortBy(null);
+              setFilterClass(null);
+            }}
+            className="bg-gray-600 px-2 py-1 rounded text-white"
           >
             🔁 Zurücksetzen
           </button>
         </div>
-
-        <div className="mt-1">
-          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
+        <div>
+          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong>{" "}
+          {totalTax.toFixed(2)}g
         </div>
       </div>
 
       <ul className="space-y-1 mt-4">
-        {visibleMembers.map((member, idx) => {
+        {visibleMembers.map((member) => {
+          const index = members.findIndex((m) => m.id === member.id);
           const unpaid = countUnpaid(member.paidWeeks);
           const latestWeek = latestPaidWeek(member.paidWeeks);
 
           return (
             <li
-              key={idx}
+              key={member.id}
               className={`flex flex-col sm:flex-row justify-between gap-2 p-2 rounded text-white text-sm ${
                 classColors[member.class] || "bg-gray-700"
               }`}
@@ -233,13 +215,17 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   <input
                     type="number"
                     value={member.level}
-                    onChange={(e) => updateMember(idx, "level", e.target.value)}
+                    onChange={(e) =>
+                      updateMember(index, "level", e.target.value)
+                    }
                     className="w-14 px-1 py-0.5 rounded text-black text-xs"
                   />
                   Klasse:
                   <select
                     value={member.class}
-                    onChange={(e) => updateMember(idx, "class", e.target.value)}
+                    onChange={(e) =>
+                      updateMember(index, "class", e.target.value)
+                    }
                     className="px-1 py-0.5 rounded text-black text-xs"
                   >
                     {classList.map((cls) => (
@@ -260,9 +246,11 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   {weekKeys.slice(-3).map((week) => (
                     <span
                       key={week}
-                      onClick={() => toggleWeek(idx, week)}
+                      onClick={() => toggleWeek(index, week)}
                       className={`px-2 py-0.5 rounded cursor-pointer text-xs ${
-                        member.paidWeeks?.[week] ? "bg-green-600" : "bg-red-600"
+                        member.paidWeeks?.[week]
+                          ? "bg-green-600"
+                          : "bg-red-600"
                       }`}
                     >
                       {week}
@@ -272,9 +260,12 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
               </div>
 
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
-                <button onClick={() => moveMember(idx, -1)}>⬆️</button>
-                <button onClick={() => moveMember(idx, 1)}>⬇️</button>
-                <button onClick={() => removeMember(idx)} className="hover:underline">
+                <button onClick={() => moveMember(index, -1)}>⬆️</button>
+                <button onClick={() => moveMember(index, 1)}>⬇️</button>
+                <button
+                  onClick={() => removeMember(index)}
+                  className="hover:underline"
+                >
                   ✖
                 </button>
               </div>
