@@ -58,20 +58,22 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
     const updated = [...members];
     const member = updated[memberIndex];
     const paid = member.paidWeeks || {};
-    const currentValue = paid[key] === true;
-    paid[key] = !currentValue; // toggeln zwischen true und false
-    member.paidWeeks = paid;
+    const wasPaid = paid[key] === true;
+  
+    paid[key] = !wasPaid; // immer explizit true/false setzen
+    member.paidWeeks = { ...paid }; // wichtig: neues Objekt erzeugen
     setMembers(updated);
-
+  
     const { error } = await supabase
       .from("members")
-      .update({ paidWeeks: paid })
+      .update({ paidWeeks: member.paidWeeks })
       .eq("id", member.id);
-
+  
     if (error) {
       console.error("❌ Fehler beim Speichern des Zahlungsstatus:", error.message);
     }
   };
+  
 
   const toggleInactive = async (memberName, week) => {
     const entry = inactiveWeeks.find((i) => i.member_name === memberName && i.week === week);
