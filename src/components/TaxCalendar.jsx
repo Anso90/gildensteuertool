@@ -140,35 +140,28 @@ export default function TaxCalendar({ members, setMembers }) {
                     <td
                       key={key}
                       className={`p-2 ${
-                        paid
-                          ? "bg-green-600"
-                          : inactive
+                        inactive
                           ? "bg-gray-500"
+                          : paid
+                          ? "bg-green-600"
                           : "bg-red-600"
                       }`}
                     >
-                      {true ? (
-                        <div
-                          className="text-white text-xs cursor-pointer"
-                          onClick={() => toggleInactive(m.name, key)}
-                        >
-                          inaktiv
-                        </div>
-                      ) : (
-                        <>
+                      <div className="flex flex-col items-center justify-center gap-1 text-xs text-white">
+                        {!inactive && (
                           <input
                             type="checkbox"
                             checked={paid}
                             onChange={() => toggleWeek(i, key)}
                           />
-                          <div
-                            onClick={() => toggleInactive(m.name, key)}
-                            className="text-[10px] text-white underline cursor-pointer mt-1"
-                          >
-                            Inaktiv
-                          </div>
-                        </>
-                      )}
+                        )}
+                        <button
+                          onClick={() => toggleInactive(m.name, key)}
+                          className="underline cursor-pointer"
+                        >
+                          Inaktiv
+                        </button>
+                      </div>
                     </td>
                   );
                 })}

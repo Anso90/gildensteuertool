@@ -1,8 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "../auth/supabaseClient";
 import { setPaymentStatus } from "../services/paymentService";
-import { calculateOutstandingTax } from "../utils/taxUtils";
 
 const classColors = {
   Cleric: "bg-yellow-500",
@@ -15,25 +13,20 @@ const classColors = {
 };
 
 const classList = Object.keys(classColors);
+const START_WEEK = 14;
+const START_YEAR = 2025;
 
 const getAllPastWeeks = () => {
   const weeks = [];
-  const startWeek = 14;
-  const startYear = 2025;
   const now = new Date();
   const thisYear = now.getFullYear();
 
-  for (let y = startYear; y <= thisYear; y++) {
-    const maxWeek =
-      y === thisYear
-        ? Math.ceil(
-            ((now - new Date(y, 0, 1)) / 86400000 +
-              new Date(y, 0, 1).getDay() +
-              1) / 7
-          )
-        : 52;
+  for (let y = START_YEAR; y <= thisYear; y++) {
+    const maxWeek = y === thisYear
+      ? Math.ceil((((now - new Date(y, 0, 1)) / 86400000) + new Date(y, 0, 1).getDay() + 1) / 7)
+      : 52;
 
-    const minWeek = y === startYear ? startWeek : 1;
+    const minWeek = y === START_YEAR ? START_WEEK : 1;
     for (let w = minWeek; w <= maxWeek; w++) {
       weeks.push(`${y}-W${w}`);
     }
@@ -44,9 +37,9 @@ const getAllPastWeeks = () => {
 
 export default function MemberTable({ members, setMembers, taxConfig }) {
   const weekKeys = getAllPastWeeks();
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
-  const [inactiveWeeks, setInactiveWeeks] = useState([]);
 
   useEffect(() => {
     const fetchInactive = async () => {
@@ -55,6 +48,9 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     };
     fetchInactive();
   }, []);
+
+  const isInactive = (memberName, week) =>
+    inactiveWeeks.some(i => i.member_name === memberName && i.week === week);
 
   const parseGold = (val) => {
     if (typeof val === "string") {
@@ -70,11 +66,27 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return taxConfig.high;
   };
 
+  const getUnpaidWeeks = (member) =>
+    weekKeys.filter(
+      (w) => !member.paidWeeks?.[w] && !isInactive(member.name, w)
+    );
+
+  const calculateUnpaidTotal = (member) => {
+    const taxVal = parseGold(calculateTax(member.level));
+    const unpaidWeeks = getUnpaidWeeks(member);
+    const total = taxVal * unpaidWeeks.length;
+    const gold = Math.floor(total);
+    const silver = Math.round((total - gold) * 100);
+    const weekStr = unpaidWeeks.length > 0 ? `(${unpaidWeeks.join(", ")})` : "";
+    return unpaidWeeks.length > 0
+      ? `💰 Offen: ${gold}g ${silver}s ${weekStr}`
+      : "";
+  };
+
   const updateMember = async (id, field, value) => {
     const updated = [...members];
     const index = updated.findIndex((m) => m.id === id);
     if (index === -1) return;
-
     updated[index][field] = field === "level" ? parseInt(value) : value;
 
     if (field === "level") {
@@ -82,23 +94,14 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     }
 
     setMembers(updated);
-
     const { level, class: klasse } = updated[index];
-    const { error } = await supabase
-      .from("members")
-      .update({ level, class: klasse })
-      .eq("id", id);
-
-    if (error) {
-      console.error("❌ Fehler beim Speichern in Supabase:", error.message);
-    }
+    await supabase.from("members").update({ level, class: klasse }).eq("id", id);
   };
 
   const toggleWeek = async (id, week) => {
     const updated = [...members];
     const index = updated.findIndex((m) => m.id === id);
     if (index === -1) return;
-
     const member = updated[index];
     const current = member.paidWeeks?.[week] || false;
     const newStatus = !current;
@@ -151,11 +154,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     visibleMembers.sort((a, b) => a.class.localeCompare(b.class));
   }
 
-  const isInactive = (memberName, week) =>
-    inactiveWeeks.some((w) => w.member_name === memberName && w.week === week);
-
-  const now = new Date();
-
   return (
     <div>
       <h2 className="text-2xl font-bold mb-2">Mitglieder</h2>
@@ -163,10 +161,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
       <div className="bg-obsDark text-obsGray border border-obsRed p-4 rounded-lg">
         <div>
           👥 <strong>Gesamtmitglieder:</strong>{" "}
-          <span
-            onClick={() => setFilterClass(null)}
-            className="cursor-pointer text-white"
-          >
+          <span onClick={() => setFilterClass(null)} className="cursor-pointer text-white">
             {members.length}
           </span>
         </div>
@@ -186,43 +181,19 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
         </div>
 
         <div className="flex gap-2 mb-2 text-xs">
-          <button
-            onClick={() => setSortBy("level")}
-            className="bg-blue-800 px-2 py-1 rounded text-white"
-          >
-            🔼 Level
-          </button>
-          <button
-            onClick={() => setSortBy("class")}
-            className="bg-red-700 px-2 py-1 rounded text-white"
-          >
-            🔤 Klasse
-          </button>
-          <button
-            onClick={() => {
-              setSortBy(null);
-              setFilterClass(null);
-            }}
-            className="bg-gray-600 px-2 py-1 rounded text-white"
-          >
-            🔁 Zurücksetzen
-          </button>
+          <button onClick={() => setSortBy("level")} className="bg-blue-800 px-2 py-1 rounded text-white">🔼 Level</button>
+          <button onClick={() => setSortBy("class")} className="bg-red-700 px-2 py-1 rounded text-white">🔤 Klasse</button>
+          <button onClick={() => { setSortBy(null); setFilterClass(null); }} className="bg-gray-600 px-2 py-1 rounded text-white">🔁 Zurücksetzen</button>
         </div>
 
         <div>
-          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong>{" "}
-          {totalTax.toFixed(2)}g
+          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
         </div>
       </div>
 
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
-          const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig);
-          const unpaid = taxText.includes("Offen");
-          const unpaidWeeks = taxText
-            .match(/\((.*?)\)/)?.[1]
-            .split(", ")
-            .filter(Boolean) || [];
+          const unpaidText = calculateUnpaidTotal(member);
 
           return (
             <li
@@ -238,17 +209,13 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   <input
                     type="number"
                     value={member.level}
-                    onChange={(e) =>
-                      updateMember(member.id, "level", e.target.value)
-                    }
+                    onChange={(e) => updateMember(member.id, "level", e.target.value)}
                     className="w-14 px-1 py-0.5 rounded text-black text-xs"
                   />
                   Klasse:
                   <select
                     value={member.class}
-                    onChange={(e) =>
-                      updateMember(member.id, "class", e.target.value)
-                    }
+                    onChange={(e) => updateMember(member.id, "class", e.target.value)}
                     className="px-1 py-0.5 rounded text-black text-xs"
                   >
                     {classList.map((cls) => (
@@ -259,32 +226,16 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   </select>
                   Steuer: <strong>{calculateTax(member.level)}</strong>
                 </div>
-                {unpaid && (
-                  <div className="text-yellow-200 text-xs italic">{taxText}</div>
-                )}
 
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {unpaidWeeks.map((week) => (
-                    <span
-                      key={week}
-                      onClick={() => toggleWeek(member.id, week)}
-                      className="px-2 py-0.5 rounded cursor-pointer text-xs bg-red-600"
-                    >
-                      {week}
-                    </span>
-                  ))}
-                </div>
+                {unpaidText && (
+                  <div className="text-yellow-200 text-xs italic">{unpaidText}</div>
+                )}
               </div>
 
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
                 <button onClick={() => moveMember(member.id, -1)}>⬆️</button>
                 <button onClick={() => moveMember(member.id, 1)}>⬇️</button>
-                <button
-                  onClick={() => removeMember(member.id)}
-                  className="hover:underline"
-                >
-                  ✖
-                </button>
+                <button onClick={() => removeMember(member.id)} className="hover:underline">✖</button>
               </div>
             </li>
           );
@@ -293,4 +244,3 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     </div>
   );
 }
-    
