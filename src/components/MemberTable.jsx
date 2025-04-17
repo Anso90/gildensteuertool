@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../auth/supabaseClient";
 import { setPaymentStatus } from "../services/paymentService";
+import { calculateOutstandingTax } from "../utils/taxUtils";
 
 const classColors = {
   Cleric: "bg-yellow-500",
@@ -16,7 +17,7 @@ const classList = Object.keys(classColors);
 
 const getAllPastWeeks = () => {
   const weeks = [];
-  const startWeek = 19;
+  const startWeek = 14;
   const startYear = 2025;
   const now = new Date();
   const thisYear = now.getFullYear();
@@ -24,7 +25,11 @@ const getAllPastWeeks = () => {
   for (let y = startYear; y <= thisYear; y++) {
     const maxWeek =
       y === thisYear
-        ? Math.ceil((((now - new Date(y, 0, 1)) / 86400000) + new Date(y, 0, 1).getDay() + 1) / 7)
+        ? Math.ceil(
+            ((now - new Date(y, 0, 1)) / 86400000 +
+              new Date(y, 0, 1).getDay() +
+              1) / 7
+          )
         : 52;
 
     const minWeek = y === startYear ? startWeek : 1;
@@ -40,6 +45,19 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
   const weekKeys = getAllPastWeeks();
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
+
+  useEffect(() => {
+    const fetchInactive = async () => {
+      const { data, error } = await supabase.from("inactive_members").select("*");
+      if (error) {
+        console.error("Fehler beim Laden der Inaktivitätsdaten:", error.message);
+      } else {
+        setInactiveWeeks(data || []);
+      }
+    };
+    fetchInactive();
+  }, []);
 
   const parseGold = (val) => {
     if (typeof val === "string") {
@@ -89,7 +107,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     const newStatus = !current;
 
     member.paidWeeks = {
-      ...member.paidWeeks,
+      ...(member.paidWeeks || {}),
       [week]: newStatus,
     };
 
@@ -123,14 +141,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     (sum, m) => sum + parseGold(calculateTax(m.level)),
     0
   );
-
-  const countUnpaid = (paidWeeks = {}) =>
-    weekKeys.filter((w) => !paidWeeks[w]).length;
-
-  const latestPaidWeek = (paidWeeks = {}) => {
-    const paid = weekKeys.filter((w) => paidWeeks[w]);
-    return paid.length > 0 ? paid[paid.length - 1] : "–";
-  };
 
   let visibleMembers = [...members];
 
@@ -205,8 +215,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
-          const unpaid = countUnpaid(member.paidWeeks);
-          const latestWeek = latestPaidWeek(member.paidWeeks);
+          const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig) || "–";
 
           return (
             <li
@@ -242,12 +251,9 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                     ))}
                   </select>
                   Steuer: <strong>{calculateTax(member.level)}</strong>
-                  {unpaid > 0 ? (
-                    <span className="text-red-200">💸 {unpaid} offen</span>
-                  ) : (
-                    <span className="text-green-200">✅ {latestWeek}</span>
-                  )}
                 </div>
+
+                <div className="text-yellow-200 text-xs italic">{taxText}</div>
 
                 <div className="flex flex-wrap gap-1 mt-1">
                   {weekKeys.slice(-3).map((week) => (
