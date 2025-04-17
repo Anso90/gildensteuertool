@@ -28,11 +28,11 @@ const getAllFutureWeeks = () => {
   return weeks;
 };
 
-export default function TaxCalendar({ members, setMembers, setInactiveWeeks }) {
+export default function TaxCalendar({ members, setMembers, inactiveWeeks, setInactiveWeeks }) {
   const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
-  const [inactiveWeeks, setInactiveWeeks] = useState([]);
+
 
   useEffect(() => {
     const top = topScrollRef.current;

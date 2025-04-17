@@ -28,6 +28,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const channel = supabase
+      .channel('inactivity-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inactive_members' }, payload => {
+        supabase.from("inactive_members").select("*").then(({ data }) => {
+          setInactiveWeeks(data || []);
+        });
+      })
+      .subscribe();
+  
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEY_MEMBERS, JSON.stringify(members));
   }, [members]);
 
