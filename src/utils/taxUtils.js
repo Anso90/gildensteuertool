@@ -1,53 +1,61 @@
-// src/utils/taxUtils.js
-import { getAllFutureWeeks } from "../components/TaxCalendar";
-
-export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
-  const now = new Date();
-  const currentWeek = getWeekNumber(now);
-  const currentYear = now.getFullYear();
-  const paid = member.paidWeeks || {};
-  const futureWeeks = getAllFutureWeeks();
-
-  const missingWeeks = futureWeeks
-    .filter(({ year, week }) => {
-      const key = `${year}-W${week}`;
-      return (
-        (year < currentYear || (year === currentYear && week <= currentWeek)) &&
-        !paid[key] &&
-        !inactiveWeeks.some(
-          (entry) =>
-            entry.member_name === member.name && entry.week === key
-        )
-      );
-    })
-    .map(({ year, week }) => `${week}`);
-
-  const totalSilver = missingWeeks.reduce((sum, _) => {
-    const level = parseInt(member.level || 0);
-    const rate =
-      level >= 20 ? taxConfig.high : level >= 10 ? taxConfig.mid : taxConfig.low;
-    return sum + convertToSilver(rate);
-  }, 0);
-
-  return formatTaxDisplay(totalSilver, missingWeeks);
-};
-
-const convertToSilver = (value) => {
-  if (!value) return 0;
-  const num = parseInt(value);
-  return value.includes("g") ? num * 100 : num;
-};
-
-const formatTaxDisplay = (silver, weeks) => {
-  const g = Math.floor(silver / 100);
-  const s = silver % 100;
-  const text = `${g > 0 ? `${g}g ` : ""}${s > 0 ? `${s}s` : ""}`;
-  const weekText = weeks.length > 0 ? ` (KW ${weeks.join(", ")})` : "";
-  return weeks.length ? `Offen: ${text.trim()}${weekText}` : "✅ Alles bezahlt";
-};
-
-const getWeekNumber = (d) => {
-  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const onejan = new Date(date.getFullYear(), 0, 1);
-  return Math.ceil(((date - onejan) / 86400000 + onejan.getDay() + 1) / 7);
-};
+export function calculateOutstandingTax(member, inactiveWeeks, taxConfig) {
+    if (!member || !member.paidWeeks || !member.name) return null;
+  
+    const parseGold = (val) => {
+      if (typeof val === "string") {
+        if (val.endsWith("s")) return parseFloat(val) / 100;
+        if (val.endsWith("g")) return parseFloat(val);
+      }
+      return parseFloat(val);
+    };
+  
+    const formatGold = (g) => {
+      const gold = Math.floor(g);
+      const silver = Math.round((g - gold) * 100);
+      if (gold && silver) return `${gold}g ${silver}s`;
+      if (gold) return `${gold}g`;
+      if (silver) return `${silver}s`;
+      return "0g";
+    };
+  
+    const getTax = (lvl) => {
+      if (lvl < 10) return parseGold(taxConfig.low);
+      if (lvl < 20) return parseGold(taxConfig.mid);
+      return parseGold(taxConfig.high);
+    };
+  
+    const thisYear = new Date().getFullYear();
+    const thisWeek = Math.ceil(
+      ((new Date() - new Date(thisYear, 0, 1)) / 86400000 +
+        new Date(thisYear, 0, 1).getDay() +
+        1) /
+        7
+    );
+  
+    const unpaidWeeks = [];
+  
+    for (let y = 2025; y <= thisYear; y++) {
+      const minWeek = y === 2025 ? 14 : 1;
+      const maxWeek = y === thisYear ? thisWeek : 52;
+  
+      for (let w = minWeek; w <= maxWeek; w++) {
+        const key = `${y}-W${w}`;
+        const paid = member.paidWeeks[key];
+        const isInactive = inactiveWeeks.some(
+          (entry) => entry.member_name === member.name && entry.week === key
+        );
+  
+        if (!paid && !isInactive) {
+          unpaidWeeks.push(key);
+        }
+      }
+    }
+  
+    if (!unpaidWeeks.length) return null;
+  
+    const taxPerWeek = getTax(member.level);
+    const total = taxPerWeek * unpaidWeeks.length;
+  
+    return `Offen: ${formatGold(total)} (${unpaidWeeks.join(", ")})`;
+  }
+  
