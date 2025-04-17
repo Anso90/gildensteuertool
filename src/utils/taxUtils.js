@@ -1,58 +1,44 @@
-export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
+export function calculateOutstandingTax(member, inactiveWeeks, taxConfig) {
+    const parseGold = (val) => {
+      if (val.endsWith("s")) return parseFloat(val) / 100;
+      if (val.endsWith("g")) return parseFloat(val);
+      return 0;
+    };
+  
+    const getTaxValue = (level) => {
+      if (level < 10) return parseGold(taxConfig.low);
+      if (level < 20) return parseGold(taxConfig.mid);
+      return parseGold(taxConfig.high);
+    };
+  
+    const paid = member.paidWeeks || {};
+    const allWeeks = Object.keys(paid).sort();
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentWeek = Math.ceil(
-      ((now - new Date(currentYear, 0, 1)) / 86400000 +
-        new Date(currentYear, 0, 1).getDay() +
-        1) /
-        7
+      ((now - new Date(currentYear, 0, 1)) / 86400000 + new Date(currentYear, 0, 1).getDay() + 1) / 7
     );
   
-    const paidWeeks = member.paidWeeks || {};
-    const startYear = 2025;
-    const startWeek = 14;
-    const goldVal = (val) =>
-      val.endsWith("s") ? parseFloat(val) / 100 : parseFloat(val);
+    const getInactiveKeySet = () =>
+      new Set(
+        inactiveWeeks
+          .filter((e) => e.member_name === member.name)
+          .map((e) => e.week)
+      );
   
-    const weeklyTax = goldVal(
-      member.level < 10
-        ? taxConfig.low
-        : member.level < 20
-        ? taxConfig.mid
-        : taxConfig.high
+    const inactiveSet = getInactiveKeySet();
+    const unpaidWeeks = allWeeks.filter(
+      (w) => !paid[w] && !inactiveSet.has(w)
     );
   
-    let totalDue = 0;
-    let missingWeeks = [];
+    const total = unpaidWeeks.length * getTaxValue(member.level);
+    if (total === 0) return null;
   
-    for (let y = startYear; y <= currentYear; y++) {
-      const minWeek = y === startYear ? startWeek : 1;
-      const maxWeek = y === currentYear ? currentWeek : 52;
+    const formattedTotal =
+      total < 1
+        ? `${Math.round(total * 100)}s`
+        : `${Math.floor(total)}g${(total % 1 * 100).toFixed(0).padStart(2, "0")}s`;
   
-      for (let w = minWeek; w <= maxWeek; w++) {
-        const weekKey = `${y}-W${w}`;
-        const isInactive = inactiveWeeks.some(
-          (entry) =>
-            entry.member_name === member.name && entry.week === weekKey
-        );
-  
-        if (isInactive) continue;
-  
-        const paid = paidWeeks[weekKey] || false;
-        if (!paid) {
-          totalDue += weeklyTax;
-          missingWeeks.push(weekKey);
-        }
-      }
-    }
-  
-    if (totalDue === 0) return "";
-  
-    const gold = Math.floor(totalDue);
-    const silver = Math.round((totalDue - gold) * 100);
-    const display =
-      (gold > 0 ? `${gold}g ` : "") + (silver > 0 ? `${silver}s` : "");
-  
-    return `Offen: ${display.trim()} (${missingWeeks.join(", ")})`;
-  };
+    return `Offen: ${formattedTotal} (${unpaidWeeks.join(", ")})`;
+  }
   

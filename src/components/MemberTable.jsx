@@ -83,14 +83,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     setMembers(updated);
 
     const { level, class: klasse } = updated[index];
-    const { error } = await supabase
-      .from("members")
-      .update({ level, class: klasse })
-      .eq("id", id);
-
-    if (error) {
-      console.error("❌ Fehler beim Speichern in Supabase:", error.message);
-    }
+    await supabase.from("members").update({ level, class: klasse }).eq("id", id);
   };
 
   const toggleWeek = async (id, week) => {
@@ -247,7 +240,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   </select>
                   Steuer: <strong>{calculateTax(member.level)}</strong>
                 </div>
-
                 {taxText && (
                   <div className="text-yellow-200 text-xs italic">{taxText}</div>
                 )}

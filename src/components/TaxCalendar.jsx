@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../auth/supabaseClient";
 
 const getWeekDateRange = (weekNumber, year) => {
@@ -41,50 +41,38 @@ export default function TaxCalendar({ members, setMembers }) {
   const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
-  const [inactiveMap, setInactiveMap] = useState({});
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
 
   useEffect(() => {
-    const top = topScrollRef.current;
-    const bottom = scrollRef.current;
-    if (!top || !bottom) return;
-
-    const syncScroll = (src, dest) => () => (dest.scrollLeft = src.scrollLeft);
-
-    top.addEventListener("scroll", syncScroll(top, bottom));
-    bottom.addEventListener("scroll", syncScroll(bottom, top));
-
-    return () => {
-      top.removeEventListener("scroll", syncScroll(top, bottom));
-      bottom.removeEventListener("scroll", syncScroll(bottom, top));
-    };
-  }, []);
-
-  useEffect(() => {
-    const loadInactive = async () => {
+    const fetchInactive = async () => {
       const { data } = await supabase.from("inactive_members").select("*");
-      const map = {};
-      (data || []).forEach((row) => {
-        const key = `${row.member_name}_${row.week}`;
-        map[key] = true;
-      });
-      setInactiveMap(map);
+      setInactiveWeeks(data || []);
     };
-    loadInactive();
+    fetchInactive();
   }, []);
 
-  const toggleWeek = (memberIndex, key) => {
+  const isInactive = (memberName, weekKey) =>
+    inactiveWeeks.some(
+      (entry) => entry.member_name === memberName && entry.week === weekKey
+    );
+
+  const toggleWeek = async (memberIndex, key) => {
     const updated = [...members];
     const paid = updated[memberIndex].paidWeeks || {};
     paid[key] = !paid[key];
     updated[memberIndex].paidWeeks = paid;
     setMembers(updated);
+
+    const memberId = updated[memberIndex].id;
+    await supabase
+      .from("payments")
+      .upsert({ member_id: memberId, week: key, paid: paid[key] });
   };
 
-  const toggleInactive = async (memberName, weekKey) => {
-    const mapKey = `${memberName}_${weekKey}`;
-    const currentlyInactive = inactiveMap[mapKey];
+  const toggleInactivity = async (memberName, weekKey) => {
+    const exists = isInactive(memberName, weekKey);
 
-    if (currentlyInactive) {
+    if (exists) {
       await supabase
         .from("inactive_members")
         .delete()
@@ -99,11 +87,24 @@ export default function TaxCalendar({ members, setMembers }) {
       ]);
     }
 
-    setInactiveMap((prev) => ({
-      ...prev,
-      [mapKey]: !currentlyInactive,
-    }));
+    const { data } = await supabase.from("inactive_members").select("*");
+    setInactiveWeeks(data || []);
   };
+
+  useEffect(() => {
+    const top = topScrollRef.current;
+    const bottom = scrollRef.current;
+    if (!top || !bottom) return;
+
+    const syncScroll = (src, dest) => () => (dest.scrollLeft = src.scrollLeft);
+    top.addEventListener("scroll", syncScroll(top, bottom));
+    bottom.addEventListener("scroll", syncScroll(bottom, top));
+
+    return () => {
+      top.removeEventListener("scroll", syncScroll(top, bottom));
+      bottom.removeEventListener("scroll", syncScroll(bottom, top));
+    };
+  }, []);
 
   return (
     <div className="bg-obsDark border border-obsRed p-4 rounded-lg shadow-lg">
@@ -145,12 +146,11 @@ export default function TaxCalendar({ members, setMembers }) {
                 {allWeeks.map(({ year, week }) => {
                   const key = `${year}-W${week}`;
                   const paid = m.paidWeeks?.[key] || false;
-                  const inactive = inactiveMap[`${m.name}_${key}`];
-
+                  const inactive = isInactive(m.name, key);
                   return (
                     <td
                       key={key}
-                      className={`p-2 ${
+                      className={`p-1 ${
                         paid
                           ? "bg-green-600"
                           : inactive
@@ -159,12 +159,12 @@ export default function TaxCalendar({ members, setMembers }) {
                       }`}
                     >
                       {inactive ? (
-                        <button
-                          onClick={() => toggleInactive(m.name, key)}
-                          className="text-white text-xs"
+                        <span
+                          className="cursor-pointer text-white text-xs"
+                          onClick={() => toggleInactivity(m.name, key)}
                         >
-                          inaktiv ❌
-                        </button>
+                          inaktiv
+                        </span>
                       ) : (
                         <input
                           type="checkbox"
@@ -173,7 +173,7 @@ export default function TaxCalendar({ members, setMembers }) {
                           className="cursor-pointer"
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            toggleInactive(m.name, key);
+                            toggleInactivity(m.name, key);
                           }}
                         />
                       )}
