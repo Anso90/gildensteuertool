@@ -1,37 +1,46 @@
 export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
-    if (!member || !member.paidWeeks) return "";
-  
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentWeek = Math.ceil(
-      ((now - new Date(currentYear, 0, 1)) / 86400000 + new Date(currentYear, 0, 1).getDay() + 1) / 7
-    );
+    const currentWeek = Math.ceil((((now - new Date(currentYear, 0, 1)) / 86400000) + now.getDay() + 1) / 7);
+    const startYear = 2025;
+    const startWeek = 14;
   
-    const isInactive = (name, week) =>
-      inactiveWeeks.some((w) => w.member_name === name && w.week === week);
+    const goldValue = (val) => {
+      if (typeof val === "string") {
+        if (val.endsWith("s")) return parseFloat(val) / 100;
+        if (val.endsWith("g")) return parseFloat(val);
+      }
+      return parseFloat(val);
+    };
   
-    const weeksToCheck = Object.keys(member.paidWeeks || {}).filter((weekKey) => {
-      const [, w] = weekKey.split("-W");
-      const weekNumber = parseInt(w, 10);
-      return weekNumber <= currentWeek && !member.paidWeeks[weekKey] && !isInactive(member.name, weekKey);
-    });
+    const weeks = [];
   
-    if (weeksToCheck.length === 0) return "";
-  
-    const level = member.level || 0;
-    let gold = 0;
-    for (const week of weeksToCheck) {
-      let amount = taxConfig.low;
-      if (level >= 10 && level < 20) amount = taxConfig.mid;
-      if (level >= 20) amount = taxConfig.high;
-      if (typeof amount === "string") {
-        if (amount.endsWith("s")) gold += parseFloat(amount) / 100;
-        else if (amount.endsWith("g")) gold += parseFloat(amount);
-      } else {
-        gold += parseFloat(amount);
+    for (let y = startYear; y <= currentYear; y++) {
+      const maxW = y === currentYear ? currentWeek : 52;
+      const minW = y === startYear ? startWeek : 1;
+      for (let w = minW; w <= maxW; w++) {
+        weeks.push(`${y}-W${w}`);
       }
     }
   
-    return `Offen: ${gold.toFixed(2)}g (${weeksToCheck.join(", ")})`;
+    const unpaidWeeks = weeks.filter((w) => {
+      const isPaid = member.paidWeeks?.[w];
+      const isInactive = inactiveWeeks.some((entry) => entry.member_name === member.name && entry.week === w);
+      return !isPaid && !isInactive;
+    });
+  
+    const level = member.level || 0;
+    let taxRate = taxConfig.high;
+    if (level < 10) taxRate = taxConfig.low;
+    else if (level < 20) taxRate = taxConfig.mid;
+  
+    const total = unpaidWeeks.reduce((sum) => sum + goldValue(taxRate), 0);
+  
+    if (unpaidWeeks.length === 0) return null;
+  
+    const shortWeeks = unpaidWeeks.slice(0, 3).join(", ");
+    const more = unpaidWeeks.length > 3 ? `… +${unpaidWeeks.length - 3}` : "";
+  
+    return `Offen: ${total.toFixed(2)}g (${shortWeeks}${more ? ` ${more}` : ""})`;
   };
   
