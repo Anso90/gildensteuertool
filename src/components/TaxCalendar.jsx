@@ -56,19 +56,21 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
 
   const toggleWeek = async (memberIndex, key) => {
     const updated = [...members];
-    const paid = updated[memberIndex].paidWeeks || {};
-    const newPaid = !paid[key];
-    paid[key] = newPaid;
-    updated[memberIndex].paidWeeks = paid;
+    const member = updated[memberIndex];
+    const paid = member.paidWeeks || {};
+    const currentValue = paid[key] === true;
+    paid[key] = !currentValue; // toggeln zwischen true und false
+    member.paidWeeks = paid;
     setMembers(updated);
 
-    const memberId = updated[memberIndex].id;
     const { error } = await supabase
       .from("members")
       .update({ paidWeeks: paid })
-      .eq("id", memberId);
+      .eq("id", member.id);
 
-    if (error) console.error("❌ Fehler beim Speichern von Zahlstatus:", error.message);
+    if (error) {
+      console.error("❌ Fehler beim Speichern des Zahlungsstatus:", error.message);
+    }
   };
 
   const toggleInactive = async (memberName, week) => {
@@ -114,7 +116,7 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
                 </td>
                 {allWeeks.map(({ year, week }) => {
                   const key = `${year}-W${week}`;
-                  const paid = m.paidWeeks?.[key] || false;
+                  const paid = m.paidWeeks?.[key] === true;
                   const inactive = isInactive(m.name, key);
                   return (
                     <td key={key} className={`p-2 ${inactive ? "bg-gray-500" : paid ? "bg-green-600" : "bg-red-600"}`}>
