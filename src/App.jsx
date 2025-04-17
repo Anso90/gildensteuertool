@@ -95,6 +95,7 @@ export default function App() {
               <TaxCalendar
                 members={members}
                 setMembers={setMembers}
+                inactiveWeeks={inactiveWeeks}
                 setInactiveWeeks={setInactiveWeeks} // NEU
               />
             </div>
