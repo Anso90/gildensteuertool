@@ -17,7 +17,7 @@ const getWeekDateRange = (weekNumber, year) => {
   return `${format(weekStart)} - ${format(weekEnd)} (KW ${weekNumber})`;
 };
 
-const START_WEEK = 19;
+const START_WEEK = 14;
 const START_YEAR = 2025;
 
 const getAllFutureWeeks = () => {
