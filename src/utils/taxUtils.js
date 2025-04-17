@@ -1,4 +1,4 @@
-import { getAllPastWeeks } from "../components/MemberTable"; // ggf. Pfad anpassen
+
 
 export const parseGoldToFloat = (val) => {
   if (typeof val === "string") {
@@ -50,3 +50,26 @@ function getStartOfWeek(year, week) {
   const offset = ((week - 1) * 7) - (dayOfWeek - 1);
   return new Date(year, 0, 1 + offset);
 }
+
+function getAllPastWeeks() {
+    const weeks = [];
+    const startWeek = 14;
+    const startYear = 2025;
+    const now = new Date();
+    const thisYear = now.getFullYear();
+  
+    for (let y = startYear; y <= thisYear; y++) {
+      const maxWeek =
+        y === thisYear
+          ? Math.ceil((((now - new Date(y, 0, 1)) / 86400000) + new Date(y, 0, 1).getDay() + 1) / 7)
+          : 52;
+      const minWeek = y === startYear ? startWeek : 1;
+  
+      for (let w = minWeek; w <= maxWeek; w++) {
+        weeks.push(`${y}-W${w}`);
+      }
+    }
+  
+    return weeks;
+  }
+  
