@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { addInactivity, removeInactivity } from "../services/supabaseInactivity";
 
 const getWeekDateRange = (weekNumber, year) => {
   const firstDayOfYear = new Date(year, 0, 1);
@@ -24,7 +25,7 @@ const getAllFutureWeeks = () => {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  for (let year = START_YEAR; year <= currentYear; year++) {
+  for (let year = START_YEAR; year <= currentYear + 1; year++) {
     const maxWeeks = 52;
     const weekStart = year === START_YEAR ? START_WEEK : 1;
 
@@ -36,7 +37,7 @@ const getAllFutureWeeks = () => {
   return weeks;
 };
 
-export default function TaxCalendar({ members, setMembers }) {
+export default function TaxCalendar({ members, setMembers, inactiveWeeks }) {
   const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
@@ -58,12 +59,24 @@ export default function TaxCalendar({ members, setMembers }) {
     };
   }, []);
 
-  const toggleWeek = (memberIndex, key) => {
+  const toggleWeek = async (memberIndex, key, inactive) => {
     const updated = [...members];
     const paid = updated[memberIndex].paidWeeks || {};
+
+    if (inactive) return; // nichts machen wenn inaktiv
+
     paid[key] = !paid[key];
     updated[memberIndex].paidWeeks = paid;
     setMembers(updated);
+  };
+
+  const toggleInactive = async (memberName, key, isCurrentlyInactive) => {
+    if (isCurrentlyInactive) {
+      await removeInactivity(memberName, key);
+    } else {
+      await addInactivity(memberName, key);
+    }
+    window.location.reload(); // simple refresh nach Änderung
   };
 
   return (
@@ -72,16 +85,10 @@ export default function TaxCalendar({ members, setMembers }) {
         📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}
       </h2>
 
-      {/* obere Scrollleiste */}
-      <div
-        ref={topScrollRef}
-        className="overflow-x-auto mb-2 h-4"
-        style={{ scrollbarHeight: 0 }}
-      >
+      <div ref={topScrollRef} className="overflow-x-auto mb-2 h-4">
         <div style={{ width: `${allWeeks.length * 120}px`, height: "1px" }} />
       </div>
 
-      {/* Tabelle */}
       <div ref={scrollRef} className="overflow-x-auto">
         <table className="min-w-max text-sm border border-gray-700">
           <thead>
@@ -108,16 +115,36 @@ export default function TaxCalendar({ members, setMembers }) {
                 {allWeeks.map(({ year, week }) => {
                   const key = `${year}-W${week}`;
                   const paid = m.paidWeeks?.[key] || false;
+                  const isInactive =
+                    inactiveWeeks?.[key]?.has(m.name) || false;
+
                   return (
                     <td
                       key={key}
-                      className={`p-2 ${paid ? "bg-green-600" : "bg-red-600"}`}
+                      className={`p-2 ${
+                        isInactive
+                          ? "bg-gray-500 opacity-50"
+                          : paid
+                          ? "bg-green-600"
+                          : "bg-red-600"
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={paid}
-                        onChange={() => toggleWeek(i, key)}
-                      />
+                      <div className="flex flex-col items-center">
+                        <input
+                          type="checkbox"
+                          checked={paid}
+                          disabled={isInactive}
+                          onChange={() => toggleWeek(i, key, isInactive)}
+                        />
+                        <button
+                          className="text-xs underline mt-1"
+                          onClick={() =>
+                            toggleInactive(m.name, key, isInactive)
+                          }
+                        >
+                          {isInactive ? "aktiv" : "inaktiv"}
+                        </button>
+                      </div>
                     </td>
                   );
                 })}

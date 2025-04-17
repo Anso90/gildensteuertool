@@ -7,6 +7,7 @@ import TaxConfigPanel from "./components/TaxConfigPanel.jsx";
 import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import LogoutButton from "./auth/LogoutButton.jsx";
 import { supabase } from "./auth/supabaseClient.js";
+import { getInactiveEntries } from "./services/supabaseInactivity.js";
 
 const STORAGE_KEY_MEMBERS = "obscuritas_members";
 const STORAGE_KEY_TAX = "obscuritas_taxconfig";
@@ -19,7 +20,9 @@ export default function App() {
     high: "2g",
   });
 
-  // Daten laden bei Start
+  const [inactiveWeeks, setInactiveWeeks] = useState({});
+
+  // Lade aus localStorage
   useEffect(() => {
     const savedMembers = localStorage.getItem(STORAGE_KEY_MEMBERS);
     const savedTax = localStorage.getItem(STORAGE_KEY_TAX);
@@ -27,7 +30,6 @@ export default function App() {
     if (savedTax) setTaxConfig(JSON.parse(savedTax));
   }, []);
 
-  // Daten speichern
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_MEMBERS, JSON.stringify(members));
   }, [members]);
@@ -36,7 +38,7 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_TAX, JSON.stringify(taxConfig));
   }, [taxConfig]);
 
-  // Online-Status alle 10 Sekunden updaten
+  // Supabase: Online-Status updaten
   useEffect(() => {
     const updateLastSeen = async () => {
       const { data, error } = await supabase.auth.getSession();
@@ -57,6 +59,26 @@ export default function App() {
     updateLastSeen();
     const interval = setInterval(updateLastSeen, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Supabase: Inaktive Mitglieder laden
+  useEffect(() => {
+    const loadInactives = async () => {
+      const entries = await getInactiveEntries();
+      const mapped = {};
+
+      for (const entry of entries) {
+        const key = entry.week;
+        const name = entry.member_name;
+
+        if (!mapped[key]) mapped[key] = new Set();
+        mapped[key].add(name);
+      }
+
+      setInactiveWeeks(mapped);
+    };
+
+    loadInactives();
   }, []);
 
   return (
@@ -97,6 +119,7 @@ export default function App() {
               <TaxCalendar
                 members={members}
                 setMembers={setMembers}
+                inactiveWeeks={inactiveWeeks}
               />
             </div>
           }
