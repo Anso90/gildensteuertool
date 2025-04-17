@@ -1,44 +1,55 @@
 export function calculateOutstandingTax(member, inactiveWeeks, taxConfig) {
-    const parseGold = (val) => {
+  const now = new Date();
+  const paid = member.paidWeeks || {};
+  const unpaidWeeks = [];
+
+  const parseGold = (val) => {
+    if (typeof val === "string") {
       if (val.endsWith("s")) return parseFloat(val) / 100;
       if (val.endsWith("g")) return parseFloat(val);
-      return 0;
-    };
-  
-    const getTaxValue = (level) => {
-      if (level < 10) return parseGold(taxConfig.low);
-      if (level < 20) return parseGold(taxConfig.mid);
-      return parseGold(taxConfig.high);
-    };
-  
-    const paid = member.paidWeeks || {};
-    const allWeeks = Object.keys(paid).sort();
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentWeek = Math.ceil(
-      ((now - new Date(currentYear, 0, 1)) / 86400000 + new Date(currentYear, 0, 1).getDay() + 1) / 7
-    );
-  
-    const getInactiveKeySet = () =>
-      new Set(
-        inactiveWeeks
-          .filter((e) => e.member_name === member.name)
-          .map((e) => e.week)
-      );
-  
-    const inactiveSet = getInactiveKeySet();
-    const unpaidWeeks = allWeeks.filter(
-      (w) => !paid[w] && !inactiveSet.has(w)
-    );
-  
-    const total = unpaidWeeks.length * getTaxValue(member.level);
-    if (total === 0) return null;
-  
-    const formattedTotal =
-      total < 1
-        ? `${Math.round(total * 100)}s`
-        : `${Math.floor(total)}g${(total % 1 * 100).toFixed(0).padStart(2, "0")}s`;
-  
-    return `Offen: ${formattedTotal} (${unpaidWeeks.join(", ")})`;
+    }
+    return parseFloat(val);
+  };
+
+  const getTaxForLevel = (level) => {
+    if (level < 10) return taxConfig.low;
+    if (level < 20) return taxConfig.mid;
+    return taxConfig.high;
+  };
+
+  const formatGold = (val) => {
+    const g = Math.floor(val);
+    const s = Math.round((val - g) * 100);
+    return `${g > 0 ? g + "g " : ""}${s > 0 ? s + "s" : ""}`.trim();
+  };
+
+  const inactiveMap = new Set(
+    inactiveWeeks
+      .filter((i) => i.member_name === member.name)
+      .map((i) => i.week)
+  );
+
+  const weekKeys = Object.keys(paid)
+    .concat(inactiveWeeks.map((w) => w.week)) // ensure inactive weeks are considered
+    .filter((v, i, a) => a.indexOf(v) === i); // unique
+
+  for (const key of weekKeys) {
+    if (inactiveMap.has(key)) continue; // skip inactives
+    const [year, weekLabel] = key.split("-W");
+    const week = parseInt(weekLabel, 10);
+    const weekStart = new Date(year, 0, 1 + (week - 1) * 7);
+    if (weekStart > now) continue; // skip future
+    if (!paid[key]) {
+      unpaidWeeks.push(key);
+    }
   }
-  
+
+  if (unpaidWeeks.length === 0) return "";
+
+  const total = unpaidWeeks.reduce(
+    (sum) => sum + parseGold(getTaxForLevel(member.level)),
+    0
+  );
+
+  return `Offen: ${formatGold(total)} (${unpaidWeeks.join(", ")})`;
+}

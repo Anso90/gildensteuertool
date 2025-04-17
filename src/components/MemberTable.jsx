@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "../auth/supabaseClient";
 import { setPaymentStatus } from "../services/paymentService";
@@ -83,7 +84,14 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     setMembers(updated);
 
     const { level, class: klasse } = updated[index];
-    await supabase.from("members").update({ level, class: klasse }).eq("id", id);
+    const { error } = await supabase
+      .from("members")
+      .update({ level, class: klasse })
+      .eq("id", id);
+
+    if (error) {
+      console.error("❌ Fehler beim Speichern in Supabase:", error.message);
+    }
   };
 
   const toggleWeek = async (id, week) => {
@@ -142,6 +150,11 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
   } else if (sortBy === "class") {
     visibleMembers.sort((a, b) => a.class.localeCompare(b.class));
   }
+
+  const isInactive = (memberName, week) =>
+    inactiveWeeks.some((w) => w.member_name === memberName && w.week === week);
+
+  const now = new Date();
 
   return (
     <div>
@@ -205,6 +218,12 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
           const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig);
+          const unpaid = taxText.includes("Offen");
+          const unpaidWeeks = taxText
+            .match(/\((.*?)\)/)?.[1]
+            .split(", ")
+            .filter(Boolean) || [];
+
           return (
             <li
               key={member.id}
@@ -240,20 +259,16 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   </select>
                   Steuer: <strong>{calculateTax(member.level)}</strong>
                 </div>
-                {taxText && (
+                {unpaid && (
                   <div className="text-yellow-200 text-xs italic">{taxText}</div>
                 )}
 
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {weekKeys.slice(-3).map((week) => (
+                  {unpaidWeeks.map((week) => (
                     <span
                       key={week}
                       onClick={() => toggleWeek(member.id, week)}
-                      className={`px-2 py-0.5 rounded cursor-pointer text-xs ${
-                        member.paidWeeks?.[week]
-                          ? "bg-green-600"
-                          : "bg-red-600"
-                      }`}
+                      className="px-2 py-0.5 rounded cursor-pointer text-xs bg-red-600"
                     >
                       {week}
                     </span>
@@ -278,3 +293,4 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     </div>
   );
 }
+    

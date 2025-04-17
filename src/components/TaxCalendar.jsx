@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../auth/supabaseClient";
 
+const START_WEEK = 14;
+const START_YEAR = 2025;
+
 const getWeekDateRange = (weekNumber, year) => {
   const firstDayOfYear = new Date(year, 0, 1);
   const daysOffset = (weekNumber - 1) * 7 - (firstDayOfYear.getDay() - 1);
@@ -16,9 +19,6 @@ const getWeekDateRange = (weekNumber, year) => {
 
   return `${format(weekStart)} - ${format(weekEnd)} (KW ${weekNumber})`;
 };
-
-const START_WEEK = 14;
-const START_YEAR = 2025;
 
 const getAllFutureWeeks = () => {
   const weeks = [];
@@ -44,59 +44,13 @@ export default function TaxCalendar({ members, setMembers }) {
   const [inactiveWeeks, setInactiveWeeks] = useState([]);
 
   useEffect(() => {
-    const fetchInactive = async () => {
-      const { data } = await supabase.from("inactive_members").select("*");
-      setInactiveWeeks(data || []);
-    };
-    fetchInactive();
-  }, []);
-
-  const isInactive = (memberName, weekKey) =>
-    inactiveWeeks.some(
-      (entry) => entry.member_name === memberName && entry.week === weekKey
-    );
-
-  const toggleWeek = async (memberIndex, key) => {
-    const updated = [...members];
-    const paid = updated[memberIndex].paidWeeks || {};
-    paid[key] = !paid[key];
-    updated[memberIndex].paidWeeks = paid;
-    setMembers(updated);
-
-    const memberId = updated[memberIndex].id;
-    await supabase
-      .from("payments")
-      .upsert({ member_id: memberId, week: key, paid: paid[key] });
-  };
-
-  const toggleInactivity = async (memberName, weekKey) => {
-    const exists = isInactive(memberName, weekKey);
-
-    if (exists) {
-      await supabase
-        .from("inactive_members")
-        .delete()
-        .eq("member_name", memberName)
-        .eq("week", weekKey);
-    } else {
-      await supabase.from("inactive_members").insert([
-        {
-          member_name: memberName,
-          week: weekKey,
-        },
-      ]);
-    }
-
-    const { data } = await supabase.from("inactive_members").select("*");
-    setInactiveWeeks(data || []);
-  };
-
-  useEffect(() => {
     const top = topScrollRef.current;
     const bottom = scrollRef.current;
+
     if (!top || !bottom) return;
 
     const syncScroll = (src, dest) => () => (dest.scrollLeft = src.scrollLeft);
+
     top.addEventListener("scroll", syncScroll(top, bottom));
     bottom.addEventListener("scroll", syncScroll(bottom, top));
 
@@ -106,17 +60,53 @@ export default function TaxCalendar({ members, setMembers }) {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchInactives = async () => {
+      const { data } = await supabase.from("inactive_members").select("*");
+      setInactiveWeeks(data || []);
+    };
+    fetchInactives();
+  }, []);
+
+  const toggleWeek = (memberIndex, key) => {
+    const updated = [...members];
+    const paid = updated[memberIndex].paidWeeks || {};
+    paid[key] = !paid[key];
+    updated[memberIndex].paidWeeks = paid;
+    setMembers(updated);
+  };
+
+  const toggleInactive = async (memberName, week) => {
+    const entry = inactiveWeeks.find(
+      (i) => i.member_name === memberName && i.week === week
+    );
+    if (entry) {
+      await supabase.from("inactive_members").delete().eq("id", entry.id);
+    } else {
+      await supabase.from("inactive_members").insert([
+        {
+          member_name: memberName,
+          week,
+        },
+      ]);
+    }
+    const { data } = await supabase.from("inactive_members").select("*");
+    setInactiveWeeks(data || []);
+  };
+
+  const isInactive = (memberName, week) => {
+    return inactiveWeeks.some(
+      (i) => i.member_name === memberName && i.week === week
+    );
+  };
+
   return (
     <div className="bg-obsDark border border-obsRed p-4 rounded-lg shadow-lg">
       <h2 className="text-lg font-bold text-obsRed mb-4">
         📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}
       </h2>
 
-      <div
-        ref={topScrollRef}
-        className="overflow-x-auto mb-2 h-4"
-        style={{ scrollbarHeight: 0 }}
-      >
+      <div ref={topScrollRef} className="overflow-x-auto mb-2 h-4">
         <div style={{ width: `${allWeeks.length * 120}px`, height: "1px" }} />
       </div>
 
@@ -150,30 +140,25 @@ export default function TaxCalendar({ members, setMembers }) {
                   return (
                     <td
                       key={key}
-                      className={`p-1 ${
-                        paid
-                          ? "bg-green-600"
-                          : inactive
-                          ? "bg-gray-500"
-                          : "bg-red-600"
+                      className={`p-2 ${
+                        paid ? "bg-green-600" : inactive ? "bg-gray-500" : "bg-red-600"
                       }`}
                     >
                       {inactive ? (
-                        <span
-                          className="cursor-pointer text-white text-xs"
-                          onClick={() => toggleInactivity(m.name, key)}
+                        <div
+                          className="text-white cursor-pointer"
+                          onClick={() => toggleInactive(m.name, key)}
                         >
                           inaktiv
-                        </span>
+                        </div>
                       ) : (
                         <input
                           type="checkbox"
                           checked={paid}
                           onChange={() => toggleWeek(i, key)}
-                          className="cursor-pointer"
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            toggleInactivity(m.name, key);
+                            toggleInactive(m.name, key);
                           }}
                         />
                       )}
