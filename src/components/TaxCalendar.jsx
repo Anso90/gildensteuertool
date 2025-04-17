@@ -1,4 +1,3 @@
-// TaxCalendar.jsx
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../auth/supabaseClient";
 
@@ -20,8 +19,9 @@ const getAllFutureWeeks = () => {
   const now = new Date();
   const currentYear = now.getFullYear();
   for (let year = START_YEAR; year <= currentYear; year++) {
+    const maxWeeks = 52;
     const weekStart = year === START_YEAR ? START_WEEK : 1;
-    for (let w = weekStart; w <= 52; w++) {
+    for (let w = weekStart; w <= maxWeeks; w++) {
       weeks.push({ year, week: w });
     }
   }
@@ -29,33 +29,30 @@ const getAllFutureWeeks = () => {
 };
 
 export default function TaxCalendar({ members, setMembers }) {
+  const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
   const [inactiveWeeks, setInactiveWeeks] = useState([]);
-  const allWeeks = getAllFutureWeeks();
 
   useEffect(() => {
     const top = topScrollRef.current;
     const bottom = scrollRef.current;
+    if (!top || !bottom) return;
     const syncScroll = (src, dest) => () => (dest.scrollLeft = src.scrollLeft);
-    if (top && bottom) {
-      top.addEventListener("scroll", syncScroll(top, bottom));
-      bottom.addEventListener("scroll", syncScroll(bottom, top));
-    }
+    top.addEventListener("scroll", syncScroll(top, bottom));
+    bottom.addEventListener("scroll", syncScroll(bottom, top));
     return () => {
-      if (top && bottom) {
-        top.removeEventListener("scroll", syncScroll(top, bottom));
-        bottom.removeEventListener("scroll", syncScroll(bottom, top));
-      }
+      top.removeEventListener("scroll", syncScroll(top, bottom));
+      bottom.removeEventListener("scroll", syncScroll(bottom, top));
     };
   }, []);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchInactives = async () => {
       const { data } = await supabase.from("inactive_members").select("*");
       setInactiveWeeks(data || []);
     };
-    fetch();
+    fetchInactives();
   }, []);
 
   const toggleWeek = (memberIndex, key) => {
@@ -66,19 +63,26 @@ export default function TaxCalendar({ members, setMembers }) {
     setMembers(updated);
   };
 
-  const toggleInactive = async (name, week) => {
-    const entry = inactiveWeeks.find((i) => i.member_name === name && i.week === week);
-    if (entry) await supabase.from("inactive_members").delete().eq("id", entry.id);
-    else await supabase.from("inactive_members").insert([{ member_name: name, week }]);
+  const toggleInactive = async (memberName, week) => {
+    const entry = inactiveWeeks.find((i) => i.member_name === memberName && i.week === week);
+    if (entry) {
+      await supabase.from("inactive_members").delete().eq("id", entry.id);
+    } else {
+      await supabase.from("inactive_members").insert([{ member_name: memberName, week }]);
+    }
     const { data } = await supabase.from("inactive_members").select("*");
     setInactiveWeeks(data || []);
   };
 
-  const isInactive = (name, week) => inactiveWeeks.some((i) => i.member_name === name && i.week === week);
+  const isInactive = (memberName, week) => {
+    return inactiveWeeks.some((i) => i.member_name === memberName && i.week === week);
+  };
 
   return (
     <div className="bg-obsDark border border-obsRed p-4 rounded-lg shadow-lg">
-      <h2 className="text-lg font-bold text-obsRed mb-4">📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}</h2>
+      <h2 className="text-lg font-bold text-obsRed mb-4">
+        📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}
+      </h2>
       <div ref={topScrollRef} className="overflow-x-auto mb-2 h-4">
         <div style={{ width: `${allWeeks.length * 120}px`, height: "1px" }} />
       </div>
@@ -97,7 +101,9 @@ export default function TaxCalendar({ members, setMembers }) {
           <tbody>
             {members.map((m, i) => (
               <tr key={i} className="border-t border-gray-600 text-center">
-                <td className="p-2 text-left font-medium sticky left-0 bg-black border-r border-obsRed text-white z-10">{m.name}</td>
+                <td className="p-2 text-left font-medium sticky left-0 bg-black border-r border-obsRed text-white z-10">
+                  {m.name}
+                </td>
                 {allWeeks.map(({ year, week }) => {
                   const key = `${year}-W${week}`;
                   const paid = m.paidWeeks?.[key] || false;
@@ -105,11 +111,20 @@ export default function TaxCalendar({ members, setMembers }) {
                   return (
                     <td key={key} className={`p-2 ${paid ? "bg-green-600" : inactive ? "bg-gray-500" : "bg-red-600"}`}>
                       {inactive ? (
-                        <div className="text-white cursor-pointer text-xs" onClick={() => toggleInactive(m.name, key)}>Inaktiv</div>
+                        <div className="text-white text-xs cursor-pointer" onClick={() => toggleInactive(m.name, key)}>
+                          inaktiv
+                        </div>
                       ) : (
                         <>
-                          <input type="checkbox" checked={paid} onChange={() => toggleWeek(i, key)} />
-                          <div className="text-white cursor-pointer text-xs underline mt-1" onClick={() => toggleInactive(m.name, key)}>
+                          <input
+                            type="checkbox"
+                            checked={paid}
+                            onChange={() => toggleWeek(i, key)}
+                          />
+                          <div
+                            onClick={() => toggleInactive(m.name, key)}
+                            className="text-[10px] text-white underline cursor-pointer mt-1"
+                          >
                             Inaktiv
                           </div>
                         </>
