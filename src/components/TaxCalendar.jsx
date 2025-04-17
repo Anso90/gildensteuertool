@@ -147,7 +147,7 @@ export default function TaxCalendar({ members, setMembers }) {
                           : "bg-red-600"
                       }`}
                     >
-                      {inactive ? (
+                      {true ? (
                         <div
                           className="text-white text-xs cursor-pointer"
                           onClick={() => toggleInactive(m.name, key)}
