@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "../auth/supabaseClient";
 
 const START_WEEK = 14;
@@ -33,7 +33,6 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
 
-
   useEffect(() => {
     const top = topScrollRef.current;
     const bottom = scrollRef.current;
@@ -53,14 +52,23 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
       setInactiveWeeks(data || []);
     };
     fetchInactives();
-  }, []);
+  }, [setInactiveWeeks]);
 
-  const toggleWeek = (memberIndex, key) => {
+  const toggleWeek = async (memberIndex, key) => {
     const updated = [...members];
     const paid = updated[memberIndex].paidWeeks || {};
-    paid[key] = !paid[key];
+    const newPaid = !paid[key];
+    paid[key] = newPaid;
     updated[memberIndex].paidWeeks = paid;
     setMembers(updated);
+
+    const memberId = updated[memberIndex].id;
+    const { error } = await supabase
+      .from("members")
+      .update({ paidWeeks: paid })
+      .eq("id", memberId);
+
+    if (error) console.error("❌ Fehler beim Speichern von Zahlstatus:", error.message);
   };
 
   const toggleInactive = async (memberName, week) => {
@@ -109,7 +117,7 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks, setIna
                   const paid = m.paidWeeks?.[key] || false;
                   const inactive = isInactive(m.name, key);
                   return (
-                    <td key={key} className={`p-2 ${paid ? "bg-green-600" : inactive ? "bg-gray-500" : "bg-red-600"}`}>
+                    <td key={key} className={`p-2 ${inactive ? "bg-gray-500" : paid ? "bg-green-600" : "bg-red-600"}`}>
                       {inactive ? (
                         <div className="text-white text-xs cursor-pointer" onClick={() => toggleInactive(m.name, key)}>
                           inaktiv
