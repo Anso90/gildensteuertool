@@ -84,12 +84,10 @@ export default function TaxCalendar({ members, setMembers }) {
       await supabase.from("inactive_members").delete().eq("id", entry.id);
     } else {
       await supabase.from("inactive_members").insert([
-        {
-          member_name: memberName,
-          week,
-        },
+        { member_name: memberName, week },
       ]);
     }
+
     const { data } = await supabase.from("inactive_members").select("*");
     setInactiveWeeks(data || []);
   };
@@ -137,30 +135,39 @@ export default function TaxCalendar({ members, setMembers }) {
                   const key = `${year}-W${week}`;
                   const paid = m.paidWeeks?.[key] || false;
                   const inactive = isInactive(m.name, key);
+
                   return (
                     <td
                       key={key}
                       className={`p-2 ${
-                        paid ? "bg-green-600" : inactive ? "bg-gray-500" : "bg-red-600"
+                        paid
+                          ? "bg-green-600"
+                          : inactive
+                          ? "bg-gray-500"
+                          : "bg-red-600"
                       }`}
                     >
                       {inactive ? (
                         <div
-                          className="text-white cursor-pointer"
+                          className="text-white text-xs cursor-pointer"
                           onClick={() => toggleInactive(m.name, key)}
                         >
                           inaktiv
                         </div>
                       ) : (
-                        <input
-                          type="checkbox"
-                          checked={paid}
-                          onChange={() => toggleWeek(i, key)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            toggleInactive(m.name, key);
-                          }}
-                        />
+                        <>
+                          <input
+                            type="checkbox"
+                            checked={paid}
+                            onChange={() => toggleWeek(i, key)}
+                          />
+                          <div
+                            onClick={() => toggleInactive(m.name, key)}
+                            className="text-[10px] text-white underline cursor-pointer mt-1"
+                          >
+                            Inaktiv
+                          </div>
+                        </>
                       )}
                     </td>
                   );
