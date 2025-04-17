@@ -8,9 +8,6 @@ import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import LogoutButton from "./auth/LogoutButton.jsx";
 import { supabase } from "./auth/supabaseClient.js";
 
-const STORAGE_KEY_MEMBERS = "obscuritas_members";
-const STORAGE_KEY_TAX = "obscuritas_taxconfig";
-
 export default function App() {
   const [members, setMembers] = useState([]);
   const [taxConfig, setTaxConfig] = useState({
@@ -18,44 +15,36 @@ export default function App() {
     mid: "1g",
     high: "2g",
   });
-  const [inactiveWeeks, setInactiveWeeks] = useState([]); // NEU
-
-  useEffect(() => {
-    const savedMembers = localStorage.getItem(STORAGE_KEY_MEMBERS);
-    const savedTax = localStorage.getItem(STORAGE_KEY_TAX);
-    if (savedMembers) setMembers(JSON.parse(savedMembers));
-    if (savedTax) setTaxConfig(JSON.parse(savedTax));
-  }, []);
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
+  const [classicView, setClassicView] = useState(false); // 🆕 Layout-Switch
 
   useEffect(() => {
     const channel = supabase
-      .channel('inactivity-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inactive_members' }, payload => {
+      .channel("inactivity-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "inactive_members" }, payload => {
         supabase.from("inactive_members").select("*").then(({ data }) => {
           setInactiveWeeks(data || []);
         });
       })
       .subscribe();
-  
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
-  
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_MEMBERS, JSON.stringify(members));
+    localStorage.setItem("obscuritas_members", JSON.stringify(members));
   }, [members]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_TAX, JSON.stringify(taxConfig));
+    localStorage.setItem("obscuritas_taxconfig", JSON.stringify(taxConfig));
   }, [taxConfig]);
 
   useEffect(() => {
     const updateLastSeen = async () => {
       const { data } = await supabase.auth.getSession();
       const user = data?.session?.user;
-
       if (user) {
         await supabase.from("online_users").upsert(
           {
@@ -76,43 +65,47 @@ export default function App() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-obsDark text-obsGray p-10">
-        <div className="flex items-center gap-4 mb-6">
-          <img
-            src="/logo.png"
-            alt="Obscuritas Logo"
-            className="h-16 w-16 rounded-full shadow-lg"
-          />
-          <div>
-            <h1 className="text-4xl font-bold text-obsRed">
-              [DE] Obscuritas – Gildensteuer Tool
-            </h1>
-            <LogoutButton />
+        <div className="flex items-center gap-4 mb-6 justify-between">
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo.png"
+              alt="Obscuritas Logo"
+              className="h-16 w-16 rounded-full shadow-lg"
+            />
+            <div>
+              <h1 className="text-4xl font-bold text-obsRed">
+                [DE] Obscuritas – Gildensteuer Tool
+              </h1>
+              <LogoutButton />
+            </div>
           </div>
+          <button
+            onClick={() => setClassicView(!classicView)}
+            className="bg-gray-700 text-white px-4 py-2 rounded shadow hover:bg-gray-600"
+          >
+            {classicView ? "🎨 Modernes Layout" : "📄 Klassisches Layout"}
+          </button>
         </div>
+
         <Layout
           left={
             <MemberTable
               members={members}
               setMembers={setMembers}
               taxConfig={taxConfig}
-              inactiveWeeks={inactiveWeeks} // NEU
+              inactiveWeeks={inactiveWeeks}
+              classicView={classicView}
             />
           }
           right={
             <div className="space-y-6">
-              <TaxConfigPanel
-                taxConfig={taxConfig}
-                setTaxConfig={setTaxConfig}
-              />
-              <MemberManager
-                setMembers={setMembers}
-                taxConfig={taxConfig}
-              />
+              <TaxConfigPanel taxConfig={taxConfig} setTaxConfig={setTaxConfig} />
+              <MemberManager setMembers={setMembers} taxConfig={taxConfig} />
               <TaxCalendar
                 members={members}
                 setMembers={setMembers}
                 inactiveWeeks={inactiveWeeks}
-                setInactiveWeeks={setInactiveWeeks} // NEU
+                setInactiveWeeks={setInactiveWeeks}
               />
             </div>
           }

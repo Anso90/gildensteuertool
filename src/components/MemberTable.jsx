@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 import { supabase } from "../auth/supabaseClient";
 import { setPaymentStatus } from "../services/paymentService";
 import { calculateOutstandingTax } from "../utils/taxUtils";
@@ -15,33 +16,9 @@ const classColors = {
 
 const classList = Object.keys(classColors);
 
-const getAllPastWeeks = () => {
-  const weeks = [];
-  const startWeek = 14;
-  const startYear = 2025;
-  const now = new Date();
-  const thisYear = now.getFullYear();
-
-  for (let y = startYear; y <= thisYear; y++) {
-    const maxWeek =
-      y === thisYear
-        ? Math.ceil((((now - new Date(y, 0, 1)) / 86400000) + new Date(y, 0, 1).getDay() + 1) / 7)
-        : 52;
-    const minWeek = y === startYear ? startWeek : 1;
-
-    for (let w = minWeek; w <= maxWeek; w++) {
-      weeks.push(`${y}-W${w}`);
-    }
-  }
-
-  return weeks;
-};
-
-export default function MemberTable({ members, setMembers, taxConfig, inactiveWeeks }) {
-  const weekKeys = getAllPastWeeks();
+export default function MemberTable({ members, setMembers, taxConfig, inactiveWeeks, classicView }) {
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
-  
 
   const parseGold = (val) => {
     if (typeof val === "string") {
@@ -136,6 +113,36 @@ export default function MemberTable({ members, setMembers, taxConfig, inactiveWe
     visibleMembers.sort((a, b) => b.level - a.level);
   } else if (sortBy === "class") {
     visibleMembers.sort((a, b) => a.class.localeCompare(b.class));
+  }
+
+  if (classicView) {
+    return (
+      <div>
+        <h2 className="text-2xl font-bold mb-4">Mitglieder (klassisch)</h2>
+        <table className="w-full border border-gray-600 text-sm">
+          <thead className="bg-gray-700 text-white">
+            <tr>
+              <th className="p-2">Name</th>
+              <th className="p-2">Level</th>
+              <th className="p-2">Klasse</th>
+              <th className="p-2">Steuer</th>
+              <th className="p-2">Offen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.id} className="border-t border-gray-700">
+                <td className="p-2 text-white">{m.name}</td>
+                <td className="p-2 text-white">{m.level}</td>
+                <td className="p-2 text-white">{m.class}</td>
+                <td className="p-2 text-white">{calculateTax(m.level)}</td>
+                <td className="p-2 text-yellow-300">{calculateOutstandingTax(m, inactiveWeeks, taxConfig)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   return (
