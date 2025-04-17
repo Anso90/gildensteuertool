@@ -1,29 +1,38 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../auth/supabaseClient";
+import { supabase } from "../auth/supabaseClient.js";
 
 export default function OnlineUsers() {
-  const [count, setCount] = useState(0);
+  const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
-    const fetchOnline = async () => {
+    const fetchOnlineUsers = async () => {
       const { data, error } = await supabase
         .from("online_users")
-        .select("*")
-        .gte("last_seen", new Date(Date.now() - 30000).toISOString());
+        .select("*");
 
-      if (!error && data) {
-        setCount(data.length);
+      if (error) {
+        console.error("Fehler beim Laden der Online-Nutzer:", error);
+        return;
       }
+
+      const now = new Date();
+      const count = data.filter((user) => {
+        const lastSeen = new Date(user.last_seen);
+        return (now - lastSeen) / 1000 < 30;
+      }).length;
+
+      setOnlineCount(count);
     };
 
-    fetchOnline();
-    const interval = setInterval(fetchOnline, 5000);
+    fetchOnlineUsers();
+    const interval = setInterval(fetchOnlineUsers, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="text-xs text-green-400 bg-black/30 p-1 px-2 rounded shadow border border-green-700">
-      🟢 {count} Offiziere online
+    <div className="flex items-center gap-1">
+      <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+      <span>{onlineCount} Offiziere online</span>
     </div>
   );
 }
