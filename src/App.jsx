@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import Layout from "./components/Layout.jsx";
 import MemberTable from "./components/MemberTable.jsx";
@@ -7,7 +8,6 @@ import TaxConfigPanel from "./components/TaxConfigPanel.jsx";
 import ProtectedRoute from "./auth/ProtectedRoute.jsx";
 import LogoutButton from "./auth/LogoutButton.jsx";
 import { supabase } from "./auth/supabaseClient.js";
-import { getInactiveEntries } from "./services/supabaseInactivity.js";
 
 const STORAGE_KEY_MEMBERS = "obscuritas_members";
 const STORAGE_KEY_TAX = "obscuritas_taxconfig";
@@ -20,9 +20,6 @@ export default function App() {
     high: "2g",
   });
 
-  const [inactiveWeeks, setInactiveWeeks] = useState({});
-
-  // Lade aus localStorage
   useEffect(() => {
     const savedMembers = localStorage.getItem(STORAGE_KEY_MEMBERS);
     const savedTax = localStorage.getItem(STORAGE_KEY_TAX);
@@ -38,10 +35,9 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_TAX, JSON.stringify(taxConfig));
   }, [taxConfig]);
 
-  // Supabase: Online-Status updaten
   useEffect(() => {
     const updateLastSeen = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       const user = data?.session?.user;
 
       if (user) {
@@ -61,26 +57,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Supabase: Inaktive Mitglieder laden
-  useEffect(() => {
-    const loadInactives = async () => {
-      const entries = await getInactiveEntries();
-      const mapped = {};
-
-      for (const entry of entries) {
-        const key = entry.week;
-        const name = entry.member_name;
-
-        if (!mapped[key]) mapped[key] = new Set();
-        mapped[key].add(name);
-      }
-
-      setInactiveWeeks(mapped);
-    };
-
-    loadInactives();
-  }, []);
-
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-obsDark text-obsGray p-10">
@@ -97,7 +73,6 @@ export default function App() {
             <LogoutButton />
           </div>
         </div>
-
         <Layout
           left={
             <MemberTable
@@ -119,7 +94,6 @@ export default function App() {
               <TaxCalendar
                 members={members}
                 setMembers={setMembers}
-                inactiveWeeks={inactiveWeeks}
               />
             </div>
           }
