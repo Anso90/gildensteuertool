@@ -1,45 +1,58 @@
-export function calculateOutstandingTax(member, inactiveWeeks, taxConfig) {
-    if (!member || !member.paidWeeks) return "";
+export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentWeek = Math.ceil(
+      ((now - new Date(currentYear, 0, 1)) / 86400000 +
+        new Date(currentYear, 0, 1).getDay() +
+        1) /
+        7
+    );
   
-    const weekKeys = Object.keys(member.paidWeeks)
-      .concat(
-        inactiveWeeks
-          .filter((entry) => entry.member_name === member.name)
-          .map((entry) => entry.week)
-      )
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
+    const paidWeeks = member.paidWeeks || {};
+    const startYear = 2025;
+    const startWeek = 14;
+    const goldVal = (val) =>
+      val.endsWith("s") ? parseFloat(val) / 100 : parseFloat(val);
   
-    const unpaid = [];
-    let total = 0;
+    const weeklyTax = goldVal(
+      member.level < 10
+        ? taxConfig.low
+        : member.level < 20
+        ? taxConfig.mid
+        : taxConfig.high
+    );
   
-    for (const week of weekKeys) {
-      const isPaid = member.paidWeeks[week];
-      const isInactive = inactiveWeeks.some(
-        (entry) =>
-          entry.member_name === member.name && entry.week === week
-      );
+    let totalDue = 0;
+    let missingWeeks = [];
   
-      if (!isPaid && !isInactive) {
-        unpaid.push(week);
-        const rate =
-          member.level < 10
-            ? taxConfig.low
-            : member.level < 20
-            ? taxConfig.mid
-            : taxConfig.high;
+    for (let y = startYear; y <= currentYear; y++) {
+      const minWeek = y === startYear ? startWeek : 1;
+      const maxWeek = y === currentYear ? currentWeek : 52;
   
-        total += rate.endsWith("g")
-          ? parseFloat(rate)
-          : parseFloat(rate) / 100;
+      for (let w = minWeek; w <= maxWeek; w++) {
+        const weekKey = `${y}-W${w}`;
+        const isInactive = inactiveWeeks.some(
+          (entry) =>
+            entry.member_name === member.name && entry.week === weekKey
+        );
+  
+        if (isInactive) continue;
+  
+        const paid = paidWeeks[weekKey] || false;
+        if (!paid) {
+          totalDue += weeklyTax;
+          missingWeeks.push(weekKey);
+        }
       }
     }
   
-    if (unpaid.length === 0) return "";
+    if (totalDue === 0) return "";
   
-    const gold = Math.floor(total);
-    const silver = Math.round((total - gold) * 100);
+    const gold = Math.floor(totalDue);
+    const silver = Math.round((totalDue - gold) * 100);
+    const display =
+      (gold > 0 ? `${gold}g ` : "") + (silver > 0 ? `${silver}s` : "");
   
-    return `Offen: ${gold}g ${silver}s (${unpaid.join(", ")})`;
-  }
+    return `Offen: ${display.trim()} (${missingWeeks.join(", ")})`;
+  };
   
