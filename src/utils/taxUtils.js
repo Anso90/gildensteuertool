@@ -14,7 +14,6 @@ export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
     };
   
     const weeks = [];
-  
     for (let y = startYear; y <= currentYear; y++) {
       const maxW = y === currentYear ? currentWeek : 52;
       const minW = y === startYear ? startWeek : 1;
@@ -25,9 +24,11 @@ export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
   
     const unpaidWeeks = weeks.filter((w) => {
       const isPaid = member.paidWeeks?.[w];
-      const isInactive = inactiveWeeks.some((entry) => entry.member_name === member.name && entry.week === w);
+      const isInactive = inactiveWeeks?.some((entry) => entry.member_name === member.name && entry.week === w);
       return !isPaid && !isInactive;
     });
+  
+    if (unpaidWeeks.length === 0) return null;
   
     const level = member.level || 0;
     let taxRate = taxConfig.high;
@@ -35,9 +36,6 @@ export const calculateOutstandingTax = (member, inactiveWeeks, taxConfig) => {
     else if (level < 20) taxRate = taxConfig.mid;
   
     const total = unpaidWeeks.reduce((sum) => sum + goldValue(taxRate), 0);
-  
-    if (unpaidWeeks.length === 0) return null;
-  
     const shortWeeks = unpaidWeeks.slice(0, 3).join(", ");
     const more = unpaidWeeks.length > 3 ? `… +${unpaidWeeks.length - 3}` : "";
   
