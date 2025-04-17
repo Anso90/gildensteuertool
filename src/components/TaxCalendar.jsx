@@ -1,5 +1,6 @@
-import { useRef, useEffect } from "react";
-import { addInactivity, removeInactivity } from "../services/supabaseInactivity";
+import { useRef, useEffect, useState } from "react";
+import { supabase } from "../auth/supabaseClient";
+import { setPaymentStatus } from "../services/paymentService";
 
 const getWeekDateRange = (weekNumber, year) => {
   const firstDayOfYear = new Date(year, 0, 1);
@@ -25,7 +26,7 @@ const getAllFutureWeeks = () => {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  for (let year = START_YEAR; year <= currentYear + 1; year++) {
+  for (let year = START_YEAR; year <= currentYear; year++) {
     const maxWeeks = 52;
     const weekStart = year === START_YEAR ? START_WEEK : 1;
 
@@ -37,10 +38,11 @@ const getAllFutureWeeks = () => {
   return weeks;
 };
 
-export default function TaxCalendar({ members, setMembers, inactiveWeeks }) {
+export default function TaxCalendar({ members, setMembers }) {
   const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
 
   useEffect(() => {
     const top = topScrollRef.current;
@@ -59,24 +61,28 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks }) {
     };
   }, []);
 
-  const toggleWeek = async (memberIndex, key, inactive) => {
+  useEffect(() => {
+    const fetchInactive = async () => {
+      const { data } = await supabase.from("inactive_members").select("*");
+      setInactiveWeeks(data || []);
+    };
+    fetchInactive();
+  }, []);
+
+  const toggleWeek = async (memberIndex, key) => {
     const updated = [...members];
-    const paid = updated[memberIndex].paidWeeks || {};
+    const member = updated[memberIndex];
 
-    if (inactive) return; // nichts machen wenn inaktiv
+    const current = member.paidWeeks?.[key] || false;
+    const newStatus = !current;
 
-    paid[key] = !paid[key];
-    updated[memberIndex].paidWeeks = paid;
+    member.paidWeeks = {
+      ...member.paidWeeks,
+      [key]: newStatus,
+    };
+
     setMembers(updated);
-  };
-
-  const toggleInactive = async (memberName, key, isCurrentlyInactive) => {
-    if (isCurrentlyInactive) {
-      await removeInactivity(memberName, key);
-    } else {
-      await addInactivity(memberName, key);
-    }
-    window.location.reload(); // simple refresh nach Änderung
+    await setPaymentStatus(member.id, key, newStatus);
   };
 
   return (
@@ -85,10 +91,16 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks }) {
         📅 Steuer-Kalender ab KW {START_WEEK} / {START_YEAR}
       </h2>
 
-      <div ref={topScrollRef} className="overflow-x-auto mb-2 h-4">
+      {/* obere Scrollleiste */}
+      <div
+        ref={topScrollRef}
+        className="overflow-x-auto mb-2 h-4"
+        style={{ scrollbarHeight: 0 }}
+      >
         <div style={{ width: `${allWeeks.length * 120}px`, height: "1px" }} />
       </div>
 
+      {/* Tabelle */}
       <div ref={scrollRef} className="overflow-x-auto">
         <table className="min-w-max text-sm border border-gray-700">
           <thead>
@@ -115,36 +127,31 @@ export default function TaxCalendar({ members, setMembers, inactiveWeeks }) {
                 {allWeeks.map(({ year, week }) => {
                   const key = `${year}-W${week}`;
                   const paid = m.paidWeeks?.[key] || false;
-                  const isInactive =
-                    inactiveWeeks?.[key]?.has(m.name) || false;
+                  const inactive = inactiveWeeks.some(
+                    (entry) =>
+                      entry.member_name === m.name && entry.week === key
+                  );
 
                   return (
                     <td
                       key={key}
                       className={`p-2 ${
-                        isInactive
-                          ? "bg-gray-500 opacity-50"
+                        inactive
+                          ? "bg-gray-500 text-white"
                           : paid
                           ? "bg-green-600"
                           : "bg-red-600"
                       }`}
                     >
-                      <div className="flex flex-col items-center">
+                      {inactive ? (
+                        "inaktiv"
+                      ) : (
                         <input
                           type="checkbox"
                           checked={paid}
-                          disabled={isInactive}
-                          onChange={() => toggleWeek(i, key, isInactive)}
+                          onChange={() => toggleWeek(i, key)}
                         />
-                        <button
-                          className="text-xs underline mt-1"
-                          onClick={() =>
-                            toggleInactive(m.name, key, isInactive)
-                          }
-                        >
-                          {isInactive ? "aktiv" : "inaktiv"}
-                        </button>
-                      </div>
+                      )}
                     </td>
                   );
                 })}

@@ -49,12 +49,8 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
   useEffect(() => {
     const fetchInactive = async () => {
-      const { data, error } = await supabase.from("inactive_members").select("*");
-      if (error) {
-        console.error("Fehler beim Laden der Inaktivitätsdaten:", error.message);
-      } else {
-        setInactiveWeeks(data || []);
-      }
+      const { data } = await supabase.from("inactive_members").select("*");
+      setInactiveWeeks(data || []);
     };
     fetchInactive();
   }, []);
@@ -107,7 +103,7 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     const newStatus = !current;
 
     member.paidWeeks = {
-      ...(member.paidWeeks || {}),
+      ...member.paidWeeks,
       [week]: newStatus,
     };
 
@@ -215,7 +211,16 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
 
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
-          const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig) || "–";
+          const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig);
+          const unpaidWeeks = weekKeys.filter(
+            (week) =>
+              !member.paidWeeks?.[week] &&
+              !inactiveWeeks.some(
+                (entry) =>
+                  entry.member_name === member.name &&
+                  entry.week === week
+              )
+          );
 
           return (
             <li
@@ -252,11 +257,10 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   </select>
                   Steuer: <strong>{calculateTax(member.level)}</strong>
                 </div>
-
                 <div className="text-yellow-200 text-xs italic">{taxText}</div>
 
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {weekKeys.slice(-3).map((week) => (
+                  {unpaidWeeks.slice(0, 3).map((week) => (
                     <span
                       key={week}
                       onClick={() => toggleWeek(member.id, week)}
