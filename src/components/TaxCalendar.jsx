@@ -28,7 +28,7 @@ const getAllFutureWeeks = () => {
   return weeks;
 };
 
-export default function TaxCalendar({ members, setMembers }) {
+export default function TaxCalendar({ members, setMembers, setInactiveWeeks }) {
   const allWeeks = getAllFutureWeeks();
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);

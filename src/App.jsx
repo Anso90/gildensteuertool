@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import Layout from "./components/Layout.jsx";
 import MemberTable from "./components/MemberTable.jsx";
@@ -19,6 +18,7 @@ export default function App() {
     mid: "1g",
     high: "2g",
   });
+  const [inactiveWeeks, setInactiveWeeks] = useState([]); // NEU
 
   useEffect(() => {
     const savedMembers = localStorage.getItem(STORAGE_KEY_MEMBERS);
@@ -79,6 +79,7 @@ export default function App() {
               members={members}
               setMembers={setMembers}
               taxConfig={taxConfig}
+              inactiveWeeks={inactiveWeeks} // NEU
             />
           }
           right={
@@ -94,6 +95,7 @@ export default function App() {
               <TaxCalendar
                 members={members}
                 setMembers={setMembers}
+                setInactiveWeeks={setInactiveWeeks} // NEU
               />
             </div>
           }

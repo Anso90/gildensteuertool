@@ -37,19 +37,11 @@ const getAllPastWeeks = () => {
   return weeks;
 };
 
-export default function MemberTable({ members, setMembers, taxConfig }) {
+export default function MemberTable({ members, setMembers, taxConfig, inactiveWeeks }) {
   const weekKeys = getAllPastWeeks();
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
-  const [inactiveWeeks, setInactiveWeeks] = useState([]);
-
-  useEffect(() => {
-    const fetchInactive = async () => {
-      const { data } = await supabase.from("inactive_members").select("*");
-      setInactiveWeeks(data || []);
-    };
-    fetchInactive();
-  }, []);
+  
 
   const parseGold = (val) => {
     if (typeof val === "string") {
