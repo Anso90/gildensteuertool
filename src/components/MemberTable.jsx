@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../auth/supabaseClient";
 import { setPaymentStatus } from "../services/paymentService";
+import { calculateOutstandingTax } from "../utils/taxUtils";
 
 const classColors = {
   Cleric: "bg-yellow-500",
@@ -13,33 +14,11 @@ const classColors = {
 };
 
 const classList = Object.keys(classColors);
-const START_WEEK = 14;
-const START_YEAR = 2025;
-
-const getAllPastWeeks = () => {
-  const weeks = [];
-  const now = new Date();
-  const thisYear = now.getFullYear();
-
-  for (let y = START_YEAR; y <= thisYear; y++) {
-    const maxWeek = y === thisYear
-      ? Math.ceil((((now - new Date(y, 0, 1)) / 86400000) + new Date(y, 0, 1).getDay() + 1) / 7)
-      : 52;
-
-    const minWeek = y === START_YEAR ? START_WEEK : 1;
-    for (let w = minWeek; w <= maxWeek; w++) {
-      weeks.push(`${y}-W${w}`);
-    }
-  }
-
-  return weeks;
-};
 
 export default function MemberTable({ members, setMembers, taxConfig }) {
-  const weekKeys = getAllPastWeeks();
-  const [inactiveWeeks, setInactiveWeeks] = useState([]);
   const [filterClass, setFilterClass] = useState(null);
   const [sortBy, setSortBy] = useState(null);
+  const [inactiveWeeks, setInactiveWeeks] = useState([]);
 
   useEffect(() => {
     const fetchInactive = async () => {
@@ -47,10 +26,16 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
       setInactiveWeeks(data || []);
     };
     fetchInactive();
-  }, []);
 
-  const isInactive = (memberName, week) =>
-    inactiveWeeks.some(i => i.member_name === memberName && i.week === week);
+    const subscription = supabase
+      .channel("inactive_members")
+      .on("postgres_changes", { event: "*", schema: "public", table: "inactive_members" }, fetchInactive)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
 
   const parseGold = (val) => {
     if (typeof val === "string") {
@@ -66,27 +51,11 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     return taxConfig.high;
   };
 
-  const getUnpaidWeeks = (member) =>
-    weekKeys.filter(
-      (w) => !member.paidWeeks?.[w] && !isInactive(member.name, w)
-    );
-
-  const calculateUnpaidTotal = (member) => {
-    const taxVal = parseGold(calculateTax(member.level));
-    const unpaidWeeks = getUnpaidWeeks(member);
-    const total = taxVal * unpaidWeeks.length;
-    const gold = Math.floor(total);
-    const silver = Math.round((total - gold) * 100);
-    const weekStr = unpaidWeeks.length > 0 ? `(${unpaidWeeks.join(", ")})` : "";
-    return unpaidWeeks.length > 0
-      ? `💰 Offen: ${gold}g ${silver}s ${weekStr}`
-      : "";
-  };
-
   const updateMember = async (id, field, value) => {
     const updated = [...members];
     const index = updated.findIndex((m) => m.id === id);
     if (index === -1) return;
+
     updated[index][field] = field === "level" ? parseInt(value) : value;
 
     if (field === "level") {
@@ -94,25 +63,12 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
     }
 
     setMembers(updated);
+
     const { level, class: klasse } = updated[index];
-    await supabase.from("members").update({ level, class: klasse }).eq("id", id);
-  };
-
-  const toggleWeek = async (id, week) => {
-    const updated = [...members];
-    const index = updated.findIndex((m) => m.id === id);
-    if (index === -1) return;
-    const member = updated[index];
-    const current = member.paidWeeks?.[week] || false;
-    const newStatus = !current;
-
-    member.paidWeeks = {
-      ...member.paidWeeks,
-      [week]: newStatus,
-    };
-
-    setMembers(updated);
-    await setPaymentStatus(id, week, newStatus);
+    await supabase
+      .from("members")
+      .update({ level, class: klasse })
+      .eq("id", id);
   };
 
   const removeMember = (id) => {
@@ -143,7 +99,6 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
   );
 
   let visibleMembers = [...members];
-
   if (filterClass) {
     visibleMembers = visibleMembers.filter((m) => m.class === filterClass);
   }
@@ -161,7 +116,10 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
       <div className="bg-obsDark text-obsGray border border-obsRed p-4 rounded-lg">
         <div>
           👥 <strong>Gesamtmitglieder:</strong>{" "}
-          <span onClick={() => setFilterClass(null)} className="cursor-pointer text-white">
+          <span
+            onClick={() => setFilterClass(null)}
+            className="cursor-pointer text-white"
+          >
             {members.length}
           </span>
         </div>
@@ -181,19 +139,39 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
         </div>
 
         <div className="flex gap-2 mb-2 text-xs">
-          <button onClick={() => setSortBy("level")} className="bg-blue-800 px-2 py-1 rounded text-white">🔼 Level</button>
-          <button onClick={() => setSortBy("class")} className="bg-red-700 px-2 py-1 rounded text-white">🔤 Klasse</button>
-          <button onClick={() => { setSortBy(null); setFilterClass(null); }} className="bg-gray-600 px-2 py-1 rounded text-white">🔁 Zurücksetzen</button>
+          <button
+            onClick={() => setSortBy("level")}
+            className="bg-blue-800 px-2 py-1 rounded text-white"
+          >
+            🔼 Level
+          </button>
+          <button
+            onClick={() => setSortBy("class")}
+            className="bg-red-700 px-2 py-1 rounded text-white"
+          >
+            🔤 Klasse
+          </button>
+          <button
+            onClick={() => {
+              setSortBy(null);
+              setFilterClass(null);
+            }}
+            className="bg-gray-600 px-2 py-1 rounded text-white"
+          >
+            🔁 Zurücksetzen
+          </button>
         </div>
 
         <div>
-          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong> {totalTax.toFixed(2)}g
+          💰 <strong>Insgesamte Gildensteuer pro Woche:</strong>{" "}
+          {totalTax.toFixed(2)}g
         </div>
       </div>
 
       <ul className="space-y-1 mt-4">
         {visibleMembers.map((member) => {
-          const unpaidText = calculateUnpaidTotal(member);
+          const taxText = calculateOutstandingTax(member, inactiveWeeks, taxConfig);
+          const unpaidWeeks = taxText.includes("Offen") ? taxText.split("(")[1]?.replace(")", "")?.split(", ") || [] : [];
 
           return (
             <li
@@ -209,13 +187,17 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   <input
                     type="number"
                     value={member.level}
-                    onChange={(e) => updateMember(member.id, "level", e.target.value)}
+                    onChange={(e) =>
+                      updateMember(member.id, "level", e.target.value)
+                    }
                     className="w-14 px-1 py-0.5 rounded text-black text-xs"
                   />
                   Klasse:
                   <select
                     value={member.class}
-                    onChange={(e) => updateMember(member.id, "class", e.target.value)}
+                    onChange={(e) =>
+                      updateMember(member.id, "class", e.target.value)
+                    }
                     className="px-1 py-0.5 rounded text-black text-xs"
                   >
                     {classList.map((cls) => (
@@ -227,15 +209,32 @@ export default function MemberTable({ members, setMembers, taxConfig }) {
                   Steuer: <strong>{calculateTax(member.level)}</strong>
                 </div>
 
-                {unpaidText && (
-                  <div className="text-yellow-200 text-xs italic">{unpaidText}</div>
+                {taxText && (
+                  <>
+                    <div className="text-yellow-200 text-xs italic">{taxText}</div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {unpaidWeeks.map((week) => (
+                        <span
+                          key={week}
+                          className="bg-red-600 px-2 py-0.5 rounded text-xs"
+                        >
+                          {week}
+                        </span>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
 
               <div className="flex sm:flex-col items-center gap-0.5 text-xs">
                 <button onClick={() => moveMember(member.id, -1)}>⬆️</button>
                 <button onClick={() => moveMember(member.id, 1)}>⬇️</button>
-                <button onClick={() => removeMember(member.id)} className="hover:underline">✖</button>
+                <button
+                  onClick={() => removeMember(member.id)}
+                  className="hover:underline"
+                >
+                  ✖
+                </button>
               </div>
             </li>
           );
