@@ -38,8 +38,12 @@ export function calculateOutstandingTax(member, inactiveWeeks, taxConfig) {
     };
   
     const allWeeks = getAllPastWeeks();
+  
+    // ✅ Nur vergangene, unbezahlte und NICHT-inaktive Wochen zählen
     const unpaidWeeks = allWeeks.filter(
-      (w) => !member.paidWeeks?.[w] && !isInactive(member.name, w)
+      (w) =>
+        !member.paidWeeks?.[w] &&
+        !isInactive(member.name, w)
     );
   
     if (unpaidWeeks.length === 0) return "";
