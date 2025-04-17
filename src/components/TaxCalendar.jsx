@@ -61,11 +61,12 @@ export default function TaxCalendar({ members, setMembers }) {
     };
   }, []);
 
+  const fetchInactive = async () => {
+    const { data } = await supabase.from("inactive_members").select("*");
+    setInactiveWeeks(data || []);
+  };
+
   useEffect(() => {
-    const fetchInactive = async () => {
-      const { data } = await supabase.from("inactive_members").select("*");
-      setInactiveWeeks(data || []);
-    };
     fetchInactive();
   }, []);
 
@@ -83,6 +84,30 @@ export default function TaxCalendar({ members, setMembers }) {
 
     setMembers(updated);
     await setPaymentStatus(member.id, key, newStatus);
+  };
+
+  const toggleInactivity = async (memberName, weekKey) => {
+    const isCurrentlyInactive = inactiveWeeks.some(
+      (entry) => entry.member_name === memberName && entry.week === weekKey
+    );
+
+    if (isCurrentlyInactive) {
+      // entfernen
+      await supabase
+        .from("inactive_members")
+        .delete()
+        .match({ member_name: memberName, week: weekKey });
+    } else {
+      // hinzufügen
+      await supabase.from("inactive_members").upsert([
+        {
+          member_name: memberName,
+          week: weekKey,
+        },
+      ]);
+    }
+
+    await fetchInactive();
   };
 
   return (
@@ -135,7 +160,7 @@ export default function TaxCalendar({ members, setMembers }) {
                   return (
                     <td
                       key={key}
-                      className={`p-2 ${
+                      className={`p-1 ${
                         inactive
                           ? "bg-gray-500 text-white"
                           : paid
@@ -143,15 +168,27 @@ export default function TaxCalendar({ members, setMembers }) {
                           : "bg-red-600"
                       }`}
                     >
-                      {inactive ? (
-                        "inaktiv"
-                      ) : (
-                        <input
-                          type="checkbox"
-                          checked={paid}
-                          onChange={() => toggleWeek(i, key)}
-                        />
-                      )}
+                      <div className="flex flex-col items-center gap-1">
+                        {inactive ? (
+                          <span className="text-xs">inaktiv</span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={paid}
+                            onChange={() => toggleWeek(i, key)}
+                          />
+                        )}
+
+                        {/* ⚪ Toggle Button für inaktiv */}
+                        {!paid && (
+                          <button
+                            onClick={() => toggleInactivity(m.name, key)}
+                            className="text-xs bg-black/50 px-1 rounded hover:bg-black/80"
+                          >
+                            {inactive ? "❌" : "⏸"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   );
                 })}
